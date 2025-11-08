@@ -5,3 +5,4 @@
 ...module-common.o.*
 .Module.symvers.cmd
 .module*
+.cache
