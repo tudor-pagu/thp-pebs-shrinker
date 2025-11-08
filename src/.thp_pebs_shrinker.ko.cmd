@@ -1,1 +1,0 @@
-savedcmd_thp_pebs_shrinker.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /home/tudor/TUDelft/EPFL/Advanced_OS/linux/scripts/module.lds -o thp_pebs_shrinker.ko thp_pebs_shrinker.o thp_pebs_shrinker.mod.o .module-common.o
