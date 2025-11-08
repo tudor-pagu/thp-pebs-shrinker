@@ -1207,6 +1207,197 @@ deps_thp_pebs_shrinker.o := \
     $(wildcard include/config/HAVE_FUNCTION_DESCRIPTORS) \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/sections.h \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/asm-generic/sections.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/perf_event.h \
+    $(wildcard include/config/HAVE_HW_BREAKPOINT) \
+    $(wildcard include/config/FUNCTION_TRACER) \
+    $(wildcard include/config/CGROUP_PERF) \
+    $(wildcard include/config/GUEST_PERF_EVENTS) \
+    $(wildcard include/config/CPU_SUP_INTEL) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/perf_event.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/bpf_perf_event.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/generated/uapi/asm/bpf_perf_event.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/asm-generic/bpf_perf_event.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ptrace.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/pid_namespace.h \
+    $(wildcard include/config/MEMFD_CREATE) \
+    $(wildcard include/config/PID_NS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/nsproxy.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ns_common.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/ptrace.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/seccomp.h \
+    $(wildcard include/config/HAVE_ARCH_SECCOMP_FILTER) \
+    $(wildcard include/config/SECCOMP_FILTER) \
+    $(wildcard include/config/CHECKPOINT_RESTORE) \
+    $(wildcard include/config/SECCOMP_CACHE_DEBUG) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/seccomp.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/seccomp.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/asm-generic/seccomp.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/perf_event.h \
+    $(wildcard include/config/PERF_EVENTS_AMD_BRS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/static_call.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cpu.h \
+    $(wildcard include/config/GENERIC_CPU_DEVICES) \
+    $(wildcard include/config/PM_SLEEP_SMP) \
+    $(wildcard include/config/PM_SLEEP_SMP_NONZERO_CPU) \
+    $(wildcard include/config/ARCH_HAS_CPU_FINALIZE_INIT) \
+    $(wildcard include/config/CPU_MITIGATIONS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/node.h \
+    $(wildcard include/config/HMEM_REPORTING) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cpuhotplug.h \
+    $(wildcard include/config/HOTPLUG_CORE_SYNC_DEAD) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/static_call.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/text-patching.h \
+    $(wildcard include/config/UML_X86) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/stacktrace.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/cpu_entry_area.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/intel_ds.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/pgtable_areas.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/switch_to.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/generated/asm/local64.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/asm-generic/local64.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/local.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/hw_breakpoint.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/uapi/asm/hw_breakpoint.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/kdebug.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/kdebug.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ftrace.h \
+    $(wildcard include/config/HAVE_FUNCTION_GRAPH_FREGS) \
+    $(wildcard include/config/DYNAMIC_FTRACE) \
+    $(wildcard include/config/HAVE_DYNAMIC_FTRACE_WITH_ARGS) \
+    $(wildcard include/config/HAVE_FTRACE_REGS_HAVING_PT_REGS) \
+    $(wildcard include/config/HAVE_REGS_AND_STACK_ACCESS_API) \
+    $(wildcard include/config/DYNAMIC_FTRACE_WITH_REGS) \
+    $(wildcard include/config/DYNAMIC_FTRACE_WITH_ARGS) \
+    $(wildcard include/config/DYNAMIC_FTRACE_WITH_DIRECT_CALLS) \
+    $(wildcard include/config/STACK_TRACER) \
+    $(wildcard include/config/DYNAMIC_FTRACE_WITH_CALL_OPS) \
+    $(wildcard include/config/FUNCTION_GRAPH_RETVAL) \
+    $(wildcard include/config/FTRACE_SYSCALLS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/trace_recursion.h \
+    $(wildcard include/config/FTRACE_RECORD_RECURSION) \
+    $(wildcard include/config/FTRACE_VALIDATE_RCU_IS_WATCHING) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/interrupt.h \
+    $(wildcard include/config/IRQ_FORCED_THREADING) \
+    $(wildcard include/config/GENERIC_IRQ_PROBE) \
+    $(wildcard include/config/IRQ_TIMINGS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/irqreturn.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/irq.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/irq_vectors.h \
+    $(wildcard include/config/PCI_MSI) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/trace_clock.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/trace_clock.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/ftrace.h \
+    $(wildcard include/config/HAVE_FENTRY) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ftrace_regs.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/irq_work.h \
+    $(wildcard include/config/IRQ_WORK) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/irq_work.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/jump_label_ratelimit.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/perf_regs.h \
+    $(wildcard include/config/HAVE_PERF_REGS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/uapi/asm/perf_regs.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cgroup.h \
+    $(wildcard include/config/DEBUG_CGROUP_REF) \
+    $(wildcard include/config/CGROUP_CPUACCT) \
+    $(wildcard include/config/SOCK_CGROUP_DATA) \
+    $(wildcard include/config/CGROUP_DATA) \
+    $(wildcard include/config/CGROUP_BPF) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/cgroupstats.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/taskstats.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/seq_file.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/string_helpers.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ctype.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/string_choices.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/user_namespace.h \
+    $(wildcard include/config/INOTIFY_USER) \
+    $(wildcard include/config/FANOTIFY) \
+    $(wildcard include/config/BINFMT_MISC) \
+    $(wildcard include/config/PERSISTENT_KEYRINGS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/rculist_nulls.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/kernel_stat.h \
+    $(wildcard include/config/GENERIC_IRQ_STAT_SNAPSHOT) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cgroup-defs.h \
+    $(wildcard include/config/CGROUP_NET_CLASSID) \
+    $(wildcard include/config/CGROUP_NET_PRIO) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/u64_stats_sync.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bpf-cgroup-defs.h \
+    $(wildcard include/config/BPF_LSM) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/psi_types.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/kthread.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cgroup_subsys.h \
+    $(wildcard include/config/CGROUP_DEVICE) \
+    $(wildcard include/config/CGROUP_FREEZER) \
+    $(wildcard include/config/CGROUP_HUGETLB) \
+    $(wildcard include/config/CGROUP_PIDS) \
+    $(wildcard include/config/CGROUP_RDMA) \
+    $(wildcard include/config/CGROUP_MISC) \
+    $(wildcard include/config/CGROUP_DMEM) \
+    $(wildcard include/config/CGROUP_DEBUG) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cgroup_refcnt.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/security.h \
+    $(wildcard include/config/SECURITY_NETWORK) \
+    $(wildcard include/config/SECURITY_INFINIBAND) \
+    $(wildcard include/config/SECURITY_NETWORK_XFRM) \
+    $(wildcard include/config/SECURITY_PATH) \
+    $(wildcard include/config/SECURITYFS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/kernel_read_file.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/file.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/sockptr.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bpf.h \
+    $(wildcard include/config/FINEIBT) \
+    $(wildcard include/config/BPF_JIT_ALWAYS_ON) \
+    $(wildcard include/config/INET) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/bpf.h \
+    $(wildcard include/config/BPF_LIRC_MODE2) \
+    $(wildcard include/config/EFFICIENT_UNALIGNED_ACCESS) \
+    $(wildcard include/config/IP_ROUTE_CLASSID) \
+    $(wildcard include/config/BPF_KPROBE_OVERRIDE) \
+    $(wildcard include/config/XFRM) \
+    $(wildcard include/config/IPV6) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/bpf_common.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/filter.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bpfptr.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/btf.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bsearch.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/btf_ids.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/btf.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/rcupdate_trace.h \
+    $(wildcard include/config/TASKS_TRACE_RCU_READ_MB) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/memcontrol.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/page_counter.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/vmpressure.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/eventfd.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/eventfd.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/writeback.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/flex_proportions.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/backing-dev-defs.h \
+    $(wildcard include/config/DEBUG_FS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/blk_types.h \
+    $(wildcard include/config/FAIL_MAKE_REQUEST) \
+    $(wildcard include/config/BLK_CGROUP_IOCOST) \
+    $(wildcard include/config/BLK_INLINE_ENCRYPTION) \
+    $(wildcard include/config/BLK_DEV_INTEGRITY) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bvec.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/pagevec.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bio.h \
+    $(wildcard include/config/BLK_DEV_ZONED) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/mempool.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/cfi.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/cfi.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/arch/x86/include/asm/rqspinlock.h \
+    $(wildcard include/config/QUEUED_SPINLOCKS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/asm-generic/rqspinlock.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/bpf_types.h \
+    $(wildcard include/config/NETFILTER_BPF_LINK) \
+    $(wildcard include/config/XDP_SOCKETS) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/uapi/linux/lsm.h \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/lsm/selinux.h \
+    $(wildcard include/config/SECURITY_SELINUX) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/lsm/smack.h \
+    $(wildcard include/config/SECURITY_SMACK) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/lsm/apparmor.h \
+    $(wildcard include/config/SECURITY_APPARMOR) \
+  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/lsm/bpf.h \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/hashtable.h \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/memblock.h \
     $(wildcard include/config/ARCH_KEEP_MEMBLOCK) \
@@ -1238,10 +1429,6 @@ deps_thp_pebs_shrinker.o := \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/fwnode.h \
   /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/proc_fs.h \
     $(wildcard include/config/PROC_PID_ARCH_STATUS) \
-  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/seq_file.h \
-  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/string_helpers.h \
-  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/ctype.h \
-  /home/tudor/TUDelft/EPFL/Advanced_OS/linux/include/linux/string_choices.h \
 
 thp_pebs_shrinker.o: $(deps_thp_pebs_shrinker.o)
 

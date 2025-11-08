@@ -7,6 +7,7 @@
 #include "linux/kallsyms.h"
 #include "linux/list.h"
 #include "linux/mmzone.h"
+#include "linux/perf_event.h"
 #include "linux/rculist.h"
 #include "linux/rcupdate.h"
 #include "linux/spinlock.h"
@@ -90,6 +91,42 @@ next:
 	printk("%lu of %lu THP split\n", split, total);
 }
 
+#define ALL_STORES 0x82d0
+static struct perf_event_attr wd_hw_attr = {
+	.type		= PERF_TYPE_SOFTWARE,
+	.config		= PERF_COUNT_SW_CPU_CLOCK,
+	.size		= sizeof(struct perf_event_attr),
+	.pinned		= 1,
+	.disabled	= 1,
+};
+
+
+static void watchdog_overflow_callback(struct perf_event *event,
+				       struct perf_sample_data *data,
+				       struct pt_regs *regs) {
+    printk("got called from pebs!\n"); }
+
+static void register_pebs(void) {
+    unsigned int cpu;
+	struct perf_event_attr *wd_attr;
+	struct perf_event *evt;
+
+    cpu = raw_smp_processor_id();
+	wd_attr = &wd_hw_attr;
+	wd_attr->sample_period = 1000;
+	evt = perf_event_create_kernel_counter(wd_attr, cpu, NULL,
+					       watchdog_overflow_callback, NULL);
+    if (IS_ERR(evt)) {
+        printk("failed to create event...\n");
+        long err = PTR_ERR(evt);
+        pr_err("perf: create failed cpu=%u err=%ld\n", cpu, err);
+        return;
+	} else {
+        printk("created event!\n");
+    }
+
+}
+
 
 static int __init mod_init(void) {
     // first_online_pgdat_stub = (struct pglist_data *(*)(void))kallsyms_lookup_name("first_online_pgdat");
@@ -103,6 +140,8 @@ static int __init mod_init(void) {
     printk("loaded module...\n");
     split_huge_pages_all();
     printk("split everything...\n");
+    register_pebs();
+    printk("config: %d", CONFIG_HW_PERF_EVENTS);
 
     // for_each_online_pgdat(pgdat) {
     //     printk("please node id = %d\n", pgdat->node_id);
