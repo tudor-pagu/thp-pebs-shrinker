@@ -1,3 +1,4 @@
+#include "asm/pgtable.h"
 #include "linux/mm_types.h"
 #include "linux/pagewalk.h"
 #include "linux/syscalls.h"
@@ -6,9 +7,25 @@
 
 
 int num_pages_considered = 0;
+int num_pages_not_present = 0;
+int num_pages_young = 0;
+
 int on_pte_entry(pte_t *pte, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk) {
 	num_pages_considered++;
+
+	if (!pte_present(*pte)) {
+		num_pages_not_present++;	
+		return 0;
+	}
+
+	if (pte_young(*pte)) {
+		num_pages_young++;
+
+		ptep_test_and_clear_young(walk->vma, addr, pte);
+		return 0;
+	}
+
 	return 0;
 }
 
@@ -18,6 +35,9 @@ struct mm_walk_ops ops = {
 
 SYSCALL_DEFINE0(enable_thp_pebs_shrinking) {
 	num_pages_considered = 0;
+	num_pages_not_present = 0;
+	num_pages_young = 0;
+
 	printk("Enabled syscall tpagu\n");
 	struct task_struct* p;
 	int vma_cnt = 0;
@@ -50,7 +70,7 @@ SYSCALL_DEFINE0(enable_thp_pebs_shrinking) {
 	}
 	read_unlock(&tasklist_lock);
 	// printk("p = %d, ", p_count);
-	printk("vma cnt: %d , p count = %d, num_pages_considered = %d\n", vma_cnt, p_count, num_pages_considered);
+	printk("vma cnt: %d , p count = %d, num_pages_considered = %d, num pages young = %d, num pages not considered = %d\n", vma_cnt, p_count, num_pages_considered, num_pages_young, num_pages_not_present);
 	return 0;
 }
 
