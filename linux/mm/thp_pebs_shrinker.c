@@ -1,4 +1,5 @@
 #include "asm/pgtable.h"
+#include "linux/mm.h"
 #include "linux/mm_types.h"
 #include "linux/pagewalk.h"
 #include "linux/syscalls.h"
@@ -31,11 +32,33 @@ static int promote_huge_page(struct mm_struct *mm, unsigned long address) {
 		return -ENOMEM;
 	}
 
+	spinlock_t* p_lock;
+	pte_t* pte = get_locked_pte(mm, address, &p_lock);
+	pte_t* _pte;
+	unsigned long _address;
+
+	int num_zero_or_swapped_or_none = 0;
+	int total = 0;
+
+	for (_address = address, _pte = pte; _pte < pte + HPAGE_PMD_NR; _pte++, _address += PAGE_SIZE ) {
+		pte_t pteval = ptep_get(_pte);
+		if (!pte_present(pteval) || pte_none(pteval) || is_zero_pfn(pte_pfn(pteval))) {
+			num_zero_or_swapped_or_none ++;
+		}
+		total++;
+	}
+	printk("trying to promote huge page! num zero or swapped = %d , total = %d\n", num_zero_or_swapped_or_none, total);
+
+
+	pte_unmap_unlock(pte, p_lock);
+
+	// deallocate folio 
 	folio_put(folio);
 
 	return 0;
 }
 
+//TODO make this make sense
 int on_pte_entry(pte_t *pte, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk) {
 	struct page_walk_private* private = (struct page_walk_private*)(walk->private);
