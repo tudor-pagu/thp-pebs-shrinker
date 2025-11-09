@@ -10,8 +10,43 @@ int num_pages_considered = 0;
 int num_pages_not_present = 0;
 int num_pages_young = 0;
 
+#define HUGE_PAGE_BITS 21 
+// we're assuming you have the last 12 bits for the in-page offset (4096), 
+// then the 9 bits before that are the offset into the PTE array 
+
+struct page_walk_private {
+	long long last_huge_page_nr;
+	int num_pages_present;
+};
+
+static bool should_promote_huge_page(int num_pages_present) {
+	return num_pages_present >= 144; // >= 40% present rate
+}
+
+static int promote_huge_page(struct mm_struct *mm, unsigned long address) {
+	// TODO: Figure out if its ok to do this while not holding the proc lock, probably it is.
+	// Its better to do this with no locks
+	struct folio* folio = __folio_alloc(GFP_TRANSHUGE, HPAGE_PMD_ORDER, numa_node_id(), NULL);
+	if (!folio) {
+		return -ENOMEM;
+	}
+
+	folio_put(folio);
+
+	return 0;
+}
+
 int on_pte_entry(pte_t *pte, unsigned long addr,
 			 unsigned long next, struct mm_walk *walk) {
+	struct page_walk_private* private = (struct page_walk_private*)(walk->private);
+	u64 pmd_page_number = (addr >> PMD_SHIFT);
+	if (pmd_page_number != private->last_huge_page_nr) {
+		// deal with last huge page
+		if (private->last_huge_page_nr != -1 && should_promote_huge_page(private->num_pages_present)) {
+			promote_huge_page(walk->mm, addr);
+		}
+	}
+
 	num_pages_considered++;
 
 	if (!pte_present(*pte)) {
@@ -42,7 +77,7 @@ SYSCALL_DEFINE0(enable_thp_pebs_shrinking) {
 	struct task_struct* p;
 	int vma_cnt = 0;
 	int p_count = 0;
-	read_lock(&tasklist_lock);
+	rcu_read_lock(); // I think its needed for process list.
 	for_each_process(p) {
 		if (!p) {
 			continue;
@@ -62,13 +97,24 @@ SYSCALL_DEFINE0(enable_thp_pebs_shrinking) {
 		vma_iter_init(&vmi, mm, 0);
 		for_each_vma(vmi,vma) {
 			vma_cnt++;
-
-			walk_page_range(mm, vma->vm_start, vma->vm_end, &ops, NULL);
+			if (vma->vm_flags & (VM_IO|VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP)) {
+				// skipped VMA
+				continue;
+			}
+			
+			struct page_walk_private* private = kmalloc(sizeof(*private), GFP_KERNEL);
+			private->last_huge_page_nr = -1;
+			private->num_pages_present = 0;
+			walk_page_range(mm, vma->vm_start, vma->vm_end, &ops, private);
+			kfree(private);
 		}
 
 		mmap_read_unlock(mm);
+
+
+		mmput(mm);
 	}
-	read_unlock(&tasklist_lock);
+	rcu_read_unlock();
 	// printk("p = %d, ", p_count);
 	printk("vma cnt: %d , p count = %d, num_pages_considered = %d, num pages young = %d, num pages not considered = %d\n", vma_cnt, p_count, num_pages_considered, num_pages_young, num_pages_not_present);
 	return 0;
