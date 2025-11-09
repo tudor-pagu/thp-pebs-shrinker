@@ -91,6 +91,18 @@ next:
 	printk("%lu of %lu THP split\n", split, total);
 }
 
+static void scan_vmas_for_hotness(void) {
+    
+	struct vma_iterator vmi;
+	struct vm_area_struct *vma;
+	struct mm_slot* mm = mm_slot_alloc(mm_slot_cache);
+	vma_iter_init(&vmi, mm, 0);
+    for_each_vma(vmi, vma) {
+
+    }
+}
+
+
 #define ALL_STORES 0x82d0
 static struct perf_event_attr wd_hw_attr = {
 	.type		= PERF_TYPE_SOFTWARE,
@@ -141,48 +153,7 @@ static int __init mod_init(void) {
     split_huge_pages_all();
     printk("split everything...\n");
     register_pebs();
-    printk("config: %d", CONFIG_HW_PERF_EVENTS);
 
-    // for_each_online_pgdat(pgdat) {
-    //     printk("please node id = %d\n", pgdat->node_id);
-    //     printk("number of zones = %d\n", pgdat->nr_zones);
-    //     struct zone* zone;
-    //
-    //     int num_pages_considered = 0;
-    //     int num_huge_pages_considered = 0;
-    //     for (zone = pgdat->node_zones; zone; zone = next_zone_stub(zone)) {
-    //         unsigned long start_pfn = zone->zone_start_pfn;
-    //         unsigned long end_pfn = start_pfn + zone->spanned_pages;
-    //         for (unsigned long pfn = start_pfn; pfn < end_pfn; pfn++) {
-    //             struct page* page = pfn_to_online_page_stub(pfn);
-    //             if (!page) {
-    //                 continue;
-    //             }
-    //             num_pages_considered++;
-    //
-    //             struct folio *f = page_folio(page);
-    //             if(folio_test_large(f) && folio_test_anon(f)) {
-    //                 printk("splitting folio at pfn %lu\n", page_to_pfn(&f->page));
-    //                 __folio_lock_stub(f);
-    //                 split_huge_page(page);
-    //        folio_unlock_stub(f);
-    //                 num_huge_pages_considered++;
-    //                 // printk("num pages: %du start pfn: %lu \n", f->_nr_pages, folio_pfn(f));
-    //             }
-    //             // printk("looking at online page with pfn %lu", pfn);
-    //             // now we're looking at some physical 
-    //         }
-    //
-    //         // printk("looking at pages from %lu to %lu", start_pfn, end_pfn);
-    //         // if (zone->present_pages) {
-    //         //     printk("looking at zone with %lu present pages", zone->present_pages);
-    //         // }
-    //     }
-    //     printk(" in total, considered %d pages out of which %d were huge (THP)", num_pages_considered, num_huge_pages_considered);
-    // }
-    //
-    // printk("----finish----\n");
-    // thp_pebs_shrinker(NULL);
     return 0;
 }
 
