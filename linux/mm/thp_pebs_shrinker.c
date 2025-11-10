@@ -1,7 +1,11 @@
+#include "asm/page.h"
+#include "internal.h"
 #include "asm/pgtable.h"
+#include "linux/highmem.h"
 #include "linux/mm.h"
 #include "linux/mm_types.h"
 #include "linux/pagewalk.h"
+#include "linux/seqlock.h"
 #include "linux/syscalls.h"
 #include "asm/syscall_wrapper.h"
 #include "linux/sched.h"
@@ -25,6 +29,16 @@ static bool should_promote_huge_page(int num_pages_present) {
 	return num_pages_present >= 144; // >= 40% present rate
 }
 
+static bool hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address)
+{
+	struct vm_area_struct *vma;
+	vma = find_vma(mm, address);
+	if (!vma)
+		return false;
+
+	return true;
+}
+
 static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, unsigned long address) {
 	printk("trying to promote huge page at VMA address =  %lu\n", address);
 	// TODO: Figure out if its ok to do this while not holding the proc lock, probably it is.
@@ -34,6 +48,7 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 	address = address & HPAGE_PMD_MASK;
 	struct folio* folio = __folio_alloc(GFP_TRANSHUGE, HPAGE_PMD_ORDER, numa_node_id(), NULL);
 	int result = 0;
+	struct mmu_notifier_range range;
 	
 	if (!folio) {
 		result = -ENOMEM;
@@ -52,9 +67,10 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 
 	int num_zero_or_swapped_or_none = 0;
 	int total = 0;
+	int index;
 
 	printk("got to for loop! base VMA = %lu", address);
-	for (_address = address, _pte = pte; _pte < pte + HPAGE_PMD_NR; _pte++, _address += PAGE_SIZE ) {
+	for (index = 0, _address = address, _pte = pte; _pte < pte + HPAGE_PMD_NR; _pte++, _address += PAGE_SIZE, index++ ) {
 		total++;
 
 		pte_t pteval = ptep_get(_pte);
@@ -75,8 +91,50 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 			result = -ENOENT;
 			goto unlock;
 		}
+
+		struct page* to_page = folio_page(folio, index);
+		copy_highpage(to_page, normal_page);
 	}
-	printk("trying to promote huge page! num zero or swapped = %d , total = %d\n", num_zero_or_swapped_or_none, total);
+
+	mmap_read_unlock(mm);
+	mmap_write_lock(mm);
+	if (!hugepage_vma_revalidate(mm, address)) {
+		result = -ENOENT;
+		goto write_unlock;
+	}
+	
+	pmd_t *pmd = mm_find_pmd(mm, address);
+
+	if (!pmd) {
+		result = -ENOENT;
+		goto write_unlock;
+	}
+
+	if (!vma->anon_vma) {
+		printk("no anon_vma.. stopping early\n");
+		result = -ENOENT;
+		goto write_unlock;
+	}
+
+	vma_start_write(vma);
+	anon_vma_lock_write(vma->anon_vma);
+
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, mm, address, address + HPAGE_PMD_SIZE);
+	mmu_notifier_invalidate_range_start(&range);
+	// printk("in the critical loop!\n");
+	mmu_notifier_invalidate_range_end(&range);
+
+	anon_vma_unlock_write(vma->anon_vma);
+
+	// pgtable_t pgtable = pmd_pgtable(*pmd);
+
+	
+write_unlock:
+	mmap_write_unlock(mm);
+	mmap_read_lock(mm);
+
+
+	// printk("trying to promote huge page! num zero or swapped = %d , total = %d\n", num_zero_or_swapped_or_none, total);
 
 unlock:
 	pte_unmap_unlock(pte, p_lock);
@@ -85,6 +143,9 @@ folio_put:
 	// deallocate folio 
 	folio_put(folio);
 ret:
+	if (result == 0) {
+		printk("got to critical section well!\n");
+	}
 	return result;
 }
 
