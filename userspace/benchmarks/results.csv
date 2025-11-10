@@ -1,0 +1,16 @@
+wall_time,bench_time,AnonHugePages_kB,benchmark,THP_mode,run
+0.010972261428833008,,0,bench_thp_basic,current,1
+0.009858846664428711,,0,bench_thp_basic,current,2
+0.009939432144165039,,0,bench_thp_basic,current,3
+0.009679079055786133,,0,bench_thp_basic,current,4
+0.012093305587768555,,0,bench_thp_basic,current,5
+0.0042724609375,,0,bench_split_trigger,current,1
+0.003400564193725586,,0,bench_split_trigger,current,2
+0.0035386085510253906,,0,bench_split_trigger,current,3
+0.00341033935546875,,0,bench_split_trigger,current,4
+0.003922462463378906,,0,bench_split_trigger,current,5
+1.0182685852050781,,0,bench_promotion,current,1
+1.0171778202056885,,0,bench_promotion,current,2
+1.0170269012451172,,0,bench_promotion,current,3
+1.0175988674163818,,0,bench_promotion,current,4
+1.0177206993103027,,0,bench_promotion,current,5
