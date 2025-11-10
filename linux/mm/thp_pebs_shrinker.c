@@ -149,26 +149,48 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	 * Parallel GUP-fast is fine since GUP-fast will back off when
 	 * it detects PMD is changed.
 	 */
+
+	// Make pmd now be 0 and notify the TLB to do a TLB flush
+	// so others dont get a wrong value.
+	// The old value of pmd is stored din _pmd.
 	_pmd = pmdp_collapse_flush(
 		vma, address,
 		pmd); // old pmd. we can use it to unmap PTEs, but now we just leak.
+
 	spin_unlock(pmd_ptl);
+
 	mmu_notifier_invalidate_range_end(&range);
 
+	// similar to rcu_synchronize, I guess, waits
+	// for a grace period where noone is needing things from the old TLB
+	// We  can't wait for this while holding a spinlock, so we release pmd_ptl
 	tlb_remove_table_sync_one();
 
+	// make a new PMD that points sto our huge folio, in which
+	// we copied data into.
 	pmd_t _new_pmd = mk_huge_pmd(&folio->page, vma->vm_page_prot);
 	_new_pmd = maybe_pmd_mkwrite(pmd_mkdirty(_new_pmd), vma);
 
 	// basically copied from khugepaged.d line 1245 onwards
+	// take lock on pmd, so that noone else tries to touch that while we swap it out
 	spin_lock(pmd_ptl);
+	// pmd should be NONE since we did pmdp_collapse_flush
 	BUG_ON(!pmd_none(*pmd));
+	// add a new rmap for our folio, address, etc. I think this is needed to allow the 
+	// physical address to be mapped back to the virtual address later if someone wants to do a reverse
+	// translation (physical -> virtual)
 	folio_add_new_anon_rmap(folio, vma, address, RMAP_EXCLUSIVE);
 	folio_add_lru_vma(folio, vma);
+	// pgtable is as bit of a misnomer here, this is not a page table, it is the physical page where the 512 PTE entries for this PMD
+	// are stored in memory.
 	pgtable_t pgtable = pmd_pgtable(_pmd);
+	// cache this pgtable in case we later split up the PMD (I think)
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
-	set_pmd_at(mm, address, pmd, _pmd);
+	// set the pmd at position pmd (which is already pointed to by the PUD etc.) to be the new pmd we created.
+	set_pmd_at(mm, address, pmd, _new_pmd);
+	// update the cache with the new value
 	update_mmu_cache_pmd(vma, address, pmd);
+	// add this folio to the list of folios that can be split in case of memory pressure.
 	deferred_split_folio(folio, false);
 	spin_unlock(pmd_ptl);
 
