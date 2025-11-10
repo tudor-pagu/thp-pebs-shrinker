@@ -1,5 +1,4 @@
 #include "asm/page.h"
-#include "internal.h"
 #include "asm/pgtable.h"
 #include "linux/highmem.h"
 #include "linux/mm.h"
@@ -9,6 +8,8 @@
 #include "linux/syscalls.h"
 #include "asm/syscall_wrapper.h"
 #include "linux/sched.h"
+#include <asm/tlb.h>
+#include "internal.h"
 
 
 int num_pages_considered = 0;
@@ -48,6 +49,7 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 	address = address & HPAGE_PMD_MASK;
 	struct folio* folio = __folio_alloc(GFP_TRANSHUGE, HPAGE_PMD_ORDER, numa_node_id(), NULL);
 	int result = 0;
+	spinlock_t* pmd_ptl;
 	struct mmu_notifier_range range;
 	
 	if (!folio) {
@@ -104,6 +106,7 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 	}
 	
 	pmd_t *pmd = mm_find_pmd(mm, address);
+	pmd_t _pmd;
 
 	if (!pmd) {
 		result = -ENOENT;
@@ -121,12 +124,46 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct* vma, u
 
 	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, mm, address, address + HPAGE_PMD_SIZE);
 	mmu_notifier_invalidate_range_start(&range);
-	// printk("in the critical loop!\n");
+
+	pmd_ptl = pmd_lock(mm, pmd);
+	if (!pmd_ptl) {
+		result = -ENOENT;
+		mmu_notifier_invalidate_range_end(&range);
+		goto write_unlock;
+	}
+
+	/* From khugepaged.c :
+	 * This removes any huge TLB entry from the CPU so we won't allow
+	 * huge and small TLB entries for the same virtual address to
+	 * avoid the risk of CPU bugs in that area.
+	 *
+	 * Parallel GUP-fast is fine since GUP-fast will back off when
+	 * it detects PMD is changed.
+	 */
+	_pmd = pmdp_collapse_flush(vma, address, pmd); // old pmd. we can use it to unmap PTEs, but now we just leak.
+	spin_unlock(pmd_ptl);
 	mmu_notifier_invalidate_range_end(&range);
 
-	anon_vma_unlock_write(vma->anon_vma);
+	tlb_remove_table_sync_one();
 
-	// pgtable_t pgtable = pmd_pgtable(*pmd);
+	pmd_t _new_pmd = mk_huge_pmd(&folio->page, vma->vm_page_prot);
+	_new_pmd = maybe_pmd_mkwrite(pmd_mkdirty(_new_pmd), vma);
+
+	spin_lock(pmd_ptl);
+	BUG_ON(!pmd_none(*pmd));
+	folio_add_new_anon_rmap(folio, vma, address, RMAP_EXCLUSIVE);
+	folio_add_lru_vma(folio, vma);
+	pgtable_t pgtable = pmd_pgtable(_pmd);
+	pgtable_trans_huge_deposit(mm, pmd, pgtable);
+	set_pmd_at(mm, address, pmd, _pmd);
+	update_mmu_cache_pmd(vma, address, pmd);
+	deferred_split_folio(folio, false);
+	spin_unlock(pmd_ptl);
+	
+	folio = NULL;
+	
+	anon_vma_unlock_write(vma->anon_vma); // once we moved out PTEs we can move this up I think.
+
 
 	
 write_unlock:
@@ -141,7 +178,9 @@ unlock:
 
 folio_put:
 	// deallocate folio 
-	folio_put(folio);
+	if (folio) {
+		folio_put(folio);
+	}
 ret:
 	if (result == 0) {
 		printk("got to critical section well!\n");
