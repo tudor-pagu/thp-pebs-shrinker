@@ -43,24 +43,42 @@ static bool hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address)
 static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			     unsigned long address)
 {
+	int result = 0;
+	// *** WE ARE HOLDING A mmap_read_lock WHEN CALLING INTO THIS!! ***
 	printk("trying to promote huge page at VMA address =  %lu\n", address);
 	// TODO: Figure out if its ok to do this while not holding the proc lock, probably it is.
 	// Its better to do this with no locks
 
 	// align the address up to huge page boundary
 	address = address & HPAGE_PMD_MASK;
+
+	mmap_read_unlock(mm);
+	// drop the mmap lock during this costly operation, for performance.
+	// Khugepaged also does this
+	
 	struct folio *folio = __folio_alloc(GFP_TRANSHUGE, HPAGE_PMD_ORDER,
 					    numa_node_id(), NULL);
-	int result = 0;
-	spinlock_t *pmd_ptl;
-	struct mmu_notifier_range range;
+	mmap_read_lock(mm);
 
 	if (!folio) {
 		result = -ENOMEM;
 		goto ret;
 	}
 
+	if (!hugepage_vma_revalidate(mm, address)) {
+		result = -ENOENT;
+		goto folio_put;
+	}
+
+	spinlock_t *pmd_ptl;
+	struct mmu_notifier_range range;
+
+
 	spinlock_t *p_lock;
+	// this is the PTE page (a page containing 512 PTE entries, in memory)
+	// in which address lives.
+	// *** LOCK ACQUIRED: NOW WE HAVE EXCLUSIVE ACCESS TO THE PTE PAGE 
+	// WE CARE ABOUT MODIFYING ***
 	pte_t *pte = get_locked_pte(mm, address, &p_lock);
 	if (!pte) {
 		result = -ENOENT;
@@ -75,6 +93,8 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	int index;
 
 	printk("got to for loop! base VMA = %lu", address);
+	// we have taken on the PTE PAGE lock, so we are free to now iterate
+	// the 512 PTEs 
 	for (index = 0, _address = address, _pte = pte;
 	     _pte < pte + HPAGE_PMD_NR;
 	     _pte++, _address += PAGE_SIZE, index++) {
@@ -107,6 +127,9 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	}
 
 	mmap_read_unlock(mm);
+	// let go of the read lock.
+	// Now we're going to start changing the page table, 
+	// so we eneed the mmap_lock
 	mmap_write_lock(mm);
 	if (!hugepage_vma_revalidate(mm, address)) {
 		result = -ENOENT;
@@ -165,6 +188,11 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	// for a grace period where noone is needing things from the old TLB
 	// We  can't wait for this while holding a spinlock, so we release pmd_ptl
 	tlb_remove_table_sync_one();
+
+	// Now that we have gotten rid of the PMD entry, and waited for TLB flush
+	// We need to tear down the old pages that we copied from and no longer need
+	// notice _pmd hols the old _pmd entry, before we set it to 0.
+	tear_down_pmd(_pmd);
 
 	// make a new PMD that points sto our huge folio, in which
 	// we copied data into.
