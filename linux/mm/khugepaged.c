@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0
-#include "linux/huge_mm.h"
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/mm.h>
@@ -22,6 +21,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/dax.h>
 #include <linux/ksm.h>
+#include <linux/huge_mm.h>
 
 #include <asm/tlb.h>
 #include <asm/pgalloc.h>
@@ -2848,6 +2848,7 @@ out_nolock:
 }
 
 
+// returns 0 when succesful
 int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
 	struct collapse_control *cc;
 	cc = kmalloc(sizeof(*cc), GFP_KERNEL);
@@ -2856,6 +2857,8 @@ int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
 	}
 
 	cc->is_khugepaged = 0;
-	return collapse_huge_page(mm, address, 0, 0, cc);
+	int ret = collapse_huge_page(mm, address, 0, 0, cc);
+	mmap_read_lock(mm);
+	return (ret == SCAN_SUCCEED ) ? 0 : -1;
 }
 

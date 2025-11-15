@@ -695,4 +695,7 @@ static inline int split_folio_to_order(struct folio *folio, int new_order)
 	return split_folio_to_list_to_order(folio, NULL, new_order);
 }
 
+
+int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address);
+
 #endif /* _LINUX_HUGE_MM_H */

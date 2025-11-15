@@ -1,6 +1,7 @@
 #include "asm/page.h"
 #include "asm/pgtable.h"
 #include "linux/highmem.h"
+#include <linux/huge_mm.h>
 #include "linux/mm.h"
 #include "linux/mm_types.h"
 #include "linux/pagewalk.h"
@@ -30,228 +31,17 @@ static bool should_promote_huge_page(int num_pages_present)
 	return num_pages_present >= 144; // >= 40% present rate
 }
 
-static bool hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address)
-{
-	struct vm_area_struct *vma;
-	vma = find_vma(mm, address);
-	if (!vma)
-		return false;
-
-	return true;
-}
-
-// currently we've isolated a PTE page, we need to copy its bytes into the destination folio, then free those pages. If something fails we restore 
-// the PMD.
-static int huge_page_copy(pte_t* src_pte, struct folio* dst_folio, pmd_t* pmd, pmd_t orig_pmd, struct vm_area_struct *vma, unsigned long address) {
-	int index, _address, result = 0;
-	pte_t* _pte;
-	for (index = 0, _address = address, _pte = src_pte;
-	     _pte < src_pte + HPAGE_PMD_NR;
-	     _pte++, _address += PAGE_SIZE, index++) {
-
-		pte_t pteval = ptep_get(_pte);
-		if (!pte_present(pteval) || pte_none(pteval) ||
-		    is_zero_pfn(pte_pfn(pteval))) {
-		}
-		struct page *normal_page =
-			vm_normal_page(vma, _address, pteval);
-		if (!normal_page || is_zone_device_page(normal_page)) {
-			result = -ENOENT;
-			goto abort;
-		}
-
-		struct folio *normal_page_folio = page_folio(normal_page);
-		VM_BUG_ON_FOLIO(!folio_test_anon(normal_page_folio),
-				normal_page_folio);
-
-		if (folio_maybe_mapped_shared(normal_page_folio)) {
-			// lets not bother with shared pages now
-			result = -ENOENT;
-			goto abort;
-		}
-
-		struct page *to_page = folio_page(dst_folio, index);
-		copy_highpage(to_page, normal_page);
-	}
-
-	
-
-abort:
-	// something failed, we need to restore the PMD that was previously isolated
-	return result;
-}
 
 static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			     unsigned long address)
 {
-	int result = 0;
-	// *** WE ARE HOLDING A mmap_read_lock WHEN CALLING INTO THIS!! ***
-	printk("trying to promote huge page at VMA address =  %lu\n", address);
-	// TODO: Figure out if its ok to do this while not holding the proc lock, probably it is.
-	// Its better to do this with no locks
-
-	// align the address up to huge page boundary
 	address = address & HPAGE_PMD_MASK;
-
-	mmap_read_unlock(mm);
-	// drop the mmap lock during this costly operation, for performance.
-	// Khugepaged also does this
-	
-	struct folio *folio = __folio_alloc(GFP_TRANSHUGE, HPAGE_PMD_ORDER,
-					    numa_node_id(), NULL);
-	mmap_read_lock(mm);
-
-	if (!folio) {
-		result = -ENOMEM;
-		goto ret;
+	// we reuse the implementation from khugepaged
+	int ret = thp_collapse_anonymous_pmd(mm, address);
+	if (ret == 0) {
+		printk("promoted huge page for real\n");
 	}
-
-	if (!hugepage_vma_revalidate(mm, address)) {
-		result = -ENOENT;
-		goto folio_put;
-	}
-
-	spinlock_t *pmd_ptl;
-	struct mmu_notifier_range range;
-
-
-	spinlock_t *p_lock;
-	// this is the PTE page (a page containing 512 PTE entries, in memory)
-	// in which address lives.
-	// *** LOCK ACQUIRED: NOW WE HAVE EXCLUSIVE ACCESS TO THE PTE PAGE 
-	// WE CARE ABOUT MODIFYING ***
-	pte_t *pte = get_locked_pte(mm, address, &p_lock);
-	if (!pte) {
-		result = -ENOENT;
-		goto folio_put;
-	}
-
-	pte_t *_pte;
-	unsigned long _address;
-
-	int index;
-
-
-	mmap_read_unlock(mm);
-	// let go of the read lock.
-	// Now we're going to start changing the page table, 
-	// so we eneed the mmap_lock
-	mmap_write_lock(mm);
-	if (!hugepage_vma_revalidate(mm, address)) {
-		result = -ENOENT;
-		goto write_unlock;
-	}
-
-	pmd_t *pmd = mm_find_pmd(mm, address);
-	pmd_t _pmd;
-
-	if (!pmd) {
-		result = -ENOENT;
-		goto write_unlock;
-	}
-
-	if (!vma->anon_vma) {
-		printk("no anon_vma.. stopping early\n");
-		result = -ENOENT;
-		goto write_unlock;
-	}
-
-	vma_start_write(vma);
-	anon_vma_lock_write(vma->anon_vma);
-
-	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, mm, address,
-				address + HPAGE_PMD_SIZE);
-	mmu_notifier_invalidate_range_start(&range);
-
-	pmd_ptl = pmd_lock(mm, pmd);
-	if (!pmd_ptl) {
-		result = -ENOENT;
-		mmu_notifier_invalidate_range_end(&range);
-		goto write_unlock;
-	}
-
-	/* From khugepaged.c :
-	 * This removes any huge TLB entry from the CPU so we won't allow
-	 * huge and small TLB entries for the same virtual address to
-	 * avoid the risk of CPU bugs in that area.
-	 *
-	 * Parallel GUP-fast is fine since GUP-fast will back off when
-	 * it detects PMD is changed.
-	 */
-
-	// Make pmd now be 0 and notify the TLB to do a TLB flush
-	// so others dont get a wrong value.
-	// The old value of pmd is stored din _pmd.
-	_pmd = pmdp_collapse_flush(
-		vma, address,
-		pmd); // old pmd. we can use it to unmap PTEs, but now we just leak.
-
-	spin_unlock(pmd_ptl);
-
-	mmu_notifier_invalidate_range_end(&range);
-
-	// similar to rcu_synchronize, I guess, waits
-	// for a grace period where noone is needing things from the old TLB
-	// We  can't wait for this while holding a spinlock, so we release pmd_ptl
-	tlb_remove_table_sync_one();
-
-	anon_vma_unlock_write(
-		vma->anon_vma); // once we moved out PTEs we can move this up I think.
-
-	if (huge_page_copy(pte, folio, pmd, _pmd, vma, address) != 0) {
-
-	}
-
-	// make a new PMD that points sto our huge folio, in which
-	// we copied data into.
-	pmd_t _new_pmd = mk_huge_pmd(&folio->page, vma->vm_page_prot);
-	_new_pmd = maybe_pmd_mkwrite(pmd_mkdirty(_new_pmd), vma);
-
-	// basically copied from khugepaged.d line 1245 onwards
-	// take lock on pmd, so that noone else tries to touch that while we swap it out
-	spin_lock(pmd_ptl);
-	// pmd should be NONE since we did pmdp_collapse_flush
-	BUG_ON(!pmd_none(*pmd));
-	// add a new rmap for our folio, address, etc. I think this is needed to allow the 
-	// physical address to be mapped back to the virtual address later if someone wants to do a reverse
-	// translation (physical -> virtual)
-	folio_add_new_anon_rmap(folio, vma, address, RMAP_EXCLUSIVE);
-	folio_add_lru_vma(folio, vma);
-	// pgtable is as bit of a misnomer here, this is not a page table, it is the physical page where the 512 PTE entries for this PMD
-	// are stored in memory.
-	pgtable_t pgtable = pmd_pgtable(_pmd);
-	// cache this pgtable in case we later split up the PMD (I think)
-	pgtable_trans_huge_deposit(mm, pmd, pgtable);
-	// set the pmd at position pmd (which is already pointed to by the PUD etc.) to be the new pmd we created.
-	set_pmd_at(mm, address, pmd, _new_pmd);
-	// update the cache with the new value
-	update_mmu_cache_pmd(vma, address, pmd);
-	// add this folio to the list of folios that can be split in case of memory pressure.
-	deferred_split_folio(folio, false);
-	spin_unlock(pmd_ptl);
-
-	folio = NULL;
-
-
-write_unlock:
-	mmap_write_unlock(mm);
-	mmap_read_lock(mm);
-
-	// printk("trying to promote huge page! num zero or swapped = %d , total = %d\n", num_zero_or_swapped_or_none, total);
-
-unlock:
-	pte_unmap_unlock(pte, p_lock);
-
-folio_put:
-	// deallocate folio
-	if (folio) {
-		folio_put(folio);
-	}
-ret:
-	if (result == 0) {
-		printk("got to critical section well!\n");
-	}
-	return result;
+	return ret;
 }
 
 //TODO make this make sense
@@ -371,13 +161,12 @@ SYSCALL_DEFINE0(enable_thp_pebs_shrinking)
 			xa_for_each(&private->huge_pages_to_collapse, ind,
 				    entry) {
 				if (xa_is_value(entry)) {
-					printk("collapsing entry at virtual address %lu ...",
-					       xa_to_value(entry));
 					promote_huge_page(mm, vma,
 							  xa_to_value(entry));
 				}
 			}
 
+			xa_destroy(&private->huge_pages_to_collapse);
 			kfree(private);
 		}
 
