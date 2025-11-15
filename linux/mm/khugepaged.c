@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
+#include "linux/huge_mm.h"
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/mm.h>
@@ -2845,3 +2846,16 @@ out_nolock:
 	return thps == ((hend - hstart) >> HPAGE_PMD_SHIFT) ? 0
 			: madvise_collapse_errno(last_fail);
 }
+
+
+int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
+	struct collapse_control *cc;
+	cc = kmalloc(sizeof(*cc), GFP_KERNEL);
+	if (!cc) {
+		return -ENOMEM;
+	}
+
+	cc->is_khugepaged = 0;
+	return collapse_huge_page(mm, address, 0, 0, cc);
+}
+

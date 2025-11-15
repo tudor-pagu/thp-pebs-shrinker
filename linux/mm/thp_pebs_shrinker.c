@@ -40,6 +40,47 @@ static bool hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address)
 	return true;
 }
 
+// currently we've isolated a PTE page, we need to copy its bytes into the destination folio, then free those pages. If something fails we restore 
+// the PMD.
+static int huge_page_copy(pte_t* src_pte, struct folio* dst_folio, pmd_t* pmd, pmd_t orig_pmd, struct vm_area_struct *vma, unsigned long address) {
+	int index, _address, result = 0;
+	pte_t* _pte;
+	for (index = 0, _address = address, _pte = src_pte;
+	     _pte < src_pte + HPAGE_PMD_NR;
+	     _pte++, _address += PAGE_SIZE, index++) {
+
+		pte_t pteval = ptep_get(_pte);
+		if (!pte_present(pteval) || pte_none(pteval) ||
+		    is_zero_pfn(pte_pfn(pteval))) {
+		}
+		struct page *normal_page =
+			vm_normal_page(vma, _address, pteval);
+		if (!normal_page || is_zone_device_page(normal_page)) {
+			result = -ENOENT;
+			goto abort;
+		}
+
+		struct folio *normal_page_folio = page_folio(normal_page);
+		VM_BUG_ON_FOLIO(!folio_test_anon(normal_page_folio),
+				normal_page_folio);
+
+		if (folio_maybe_mapped_shared(normal_page_folio)) {
+			// lets not bother with shared pages now
+			result = -ENOENT;
+			goto abort;
+		}
+
+		struct page *to_page = folio_page(dst_folio, index);
+		copy_highpage(to_page, normal_page);
+	}
+
+	
+
+abort:
+	// something failed, we need to restore the PMD that was previously isolated
+	return result;
+}
+
 static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			     unsigned long address)
 {
@@ -88,43 +129,8 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	pte_t *_pte;
 	unsigned long _address;
 
-	int num_zero_or_swapped_or_none = 0;
-	int total = 0;
 	int index;
 
-	printk("got to for loop! base VMA = %lu", address);
-	// we have taken on the PTE PAGE lock, so we are free to now iterate
-	// the 512 PTEs 
-	for (index = 0, _address = address, _pte = pte;
-	     _pte < pte + HPAGE_PMD_NR;
-	     _pte++, _address += PAGE_SIZE, index++) {
-		total++;
-
-		pte_t pteval = ptep_get(_pte);
-		if (!pte_present(pteval) || pte_none(pteval) ||
-		    is_zero_pfn(pte_pfn(pteval))) {
-			num_zero_or_swapped_or_none++;
-		}
-		struct page *normal_page =
-			vm_normal_page(vma, _address, pteval);
-		if (!normal_page || is_zone_device_page(normal_page)) {
-			result = -ENOENT;
-			goto unlock;
-		}
-
-		struct folio *normal_page_folio = page_folio(normal_page);
-		VM_BUG_ON_FOLIO(!folio_test_anon(normal_page_folio),
-				normal_page_folio);
-
-		if (folio_maybe_mapped_shared(normal_page_folio)) {
-			// lets not bother with shared pages now
-			result = -ENOENT;
-			goto unlock;
-		}
-
-		struct page *to_page = folio_page(folio, index);
-		copy_highpage(to_page, normal_page);
-	}
 
 	mmap_read_unlock(mm);
 	// let go of the read lock.
@@ -189,10 +195,12 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	// We  can't wait for this while holding a spinlock, so we release pmd_ptl
 	tlb_remove_table_sync_one();
 
-	// Now that we have gotten rid of the PMD entry, and waited for TLB flush
-	// We need to tear down the old pages that we copied from and no longer need
-	// notice _pmd hols the old _pmd entry, before we set it to 0.
-	tear_down_pmd(_pmd);
+	anon_vma_unlock_write(
+		vma->anon_vma); // once we moved out PTEs we can move this up I think.
+
+	if (huge_page_copy(pte, folio, pmd, _pmd, vma, address) != 0) {
+
+	}
 
 	// make a new PMD that points sto our huge folio, in which
 	// we copied data into.
@@ -224,8 +232,6 @@ static int promote_huge_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	folio = NULL;
 
-	anon_vma_unlock_write(
-		vma->anon_vma); // once we moved out PTEs we can move this up I think.
 
 write_unlock:
 	mmap_write_unlock(mm);
