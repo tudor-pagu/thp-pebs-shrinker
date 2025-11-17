@@ -1068,6 +1068,8 @@ struct mm_struct {
 
 		unsigned long flags; /* Must use atomic bitops to access */
 
+
+		struct xarray* thp_usage;
 #ifdef CONFIG_AIO
 		spinlock_t			ioctx_lock;
 		struct kioctx_table __rcu	*ioctx_table;

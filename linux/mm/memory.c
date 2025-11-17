@@ -39,6 +39,7 @@
  * Aug/Sep 2004 Changed to four level page tables (Andi Kleen)
  */
 
+#include "thp_pebs_shrinker.h"
 #include <linux/kernel_stat.h>
 #include <linux/mm.h>
 #include <linux/mm_inline.h>
@@ -5055,6 +5056,10 @@ setpte:
 unlock:
 	if (vmf->pte)
 		pte_unmap_unlock(vmf->pte, vmf->ptl);
+
+	// Added code for thp pebs shrinking project:
+	// we account for this page fault here to update the utilization bitvectors
+	record_page_fault_for_thp_shrinking(vma->vm_mm, addr, nr_pages);
 	return ret;
 release:
 	folio_put(folio);

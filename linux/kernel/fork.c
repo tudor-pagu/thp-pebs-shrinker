@@ -12,6 +12,7 @@
  * management can be a bitch. See 'mm/memory.c': 'copy_page_range()'
  */
 
+#include "linux/xarray.h"
 #include <linux/anon_inodes.h>
 #include <linux/slab.h>
 #include <linux/sched/autogroup.h>
@@ -947,6 +948,14 @@ void __mmdrop(struct mm_struct *mm)
 	mm_destroy_cid(mm);
 	percpu_counter_destroy_many(mm->rss_stat, NR_MM_COUNTERS);
 
+	unsigned long idx;
+	void* entry;
+	xa_for_each(mm->thp_usage, idx, entry) {
+		BUG_ON(entry == NULL);
+		kfree(entry);
+	}
+	xa_destroy(mm->thp_usage);
+
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
@@ -1311,6 +1320,9 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 #endif
 	mm_init_uprobes_state(mm);
 	hugetlb_count_init(mm);
+
+	mm->thp_usage = kmalloc(sizeof(*mm->thp_usage), GFP_KERNEL);
+	xa_init(mm->thp_usage);
 
 	if (current->mm) {
 		mm->flags = mmf_init_flags(current->mm->flags);

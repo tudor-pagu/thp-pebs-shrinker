@@ -1,5 +1,4 @@
 #include "asm/page.h"
-#include "asm/pgtable.h"
 #include "linux/highmem.h"
 #include <linux/huge_mm.h>
 #include "linux/mm.h"
@@ -11,6 +10,7 @@
 #include "linux/sched.h"
 #include <asm/tlb.h>
 #include "internal.h"
+#include "thp_pebs_shrinker.h"
 
 int num_pages_considered = 0;
 int num_pages_not_present = 0;
@@ -182,3 +182,44 @@ unlock:
 	       num_pages_not_present);
 	return result;
 }
+
+
+struct utilization_bit_vector {
+	DECLARE_BITMAP(bitmap, 512);
+};
+
+// we should not be in atomic context here... but we probably are holding
+// mmap_lock
+int record_page_fault_for_thp_shrinking(struct mm_struct* mm, unsigned long addr, int nr_pages) {
+	// I'm assuming this can't ever happen. If it does happen,
+	// I want to know about it
+	BUG_ON(nr_pages > 512);
+	
+	u64 pmd_page_number = (addr >> PMD_SHIFT);
+	void* entry = xa_load(mm->thp_usage, pmd_page_number);
+	struct utilization_bit_vector* bit_vector;
+	if (entry == NULL) {
+		bit_vector = kmalloc(sizeof(*bit_vector), GFP_KERNEL);
+		if (!bit_vector) {
+			return -ENOMEM;
+		}
+		xa_store(mm->thp_usage, pmd_page_number, bit_vector, GFP_KERNEL);
+	} else {
+		bit_vector = (struct utilization_bit_vector*)entry;
+	}
+
+	// address is like:
+	// | ... | 9 bits of offset within PTE | 12 bits of offset within Page
+	// this shuold be the index of the page we are within the PTE page, 
+	// so from 0 to 511 inclusive.
+	int base_page_within_pmd = ((addr & ((1 << 21) - 1) ) >> 12);
+	BUG_ON(base_page_within_pmd < 0 || base_page_within_pmd >= 512);
+
+	// set the appropiate bits atomically!
+	for (int i = 0; i < nr_pages; i++) {
+		set_bit(base_page_within_pmd + i, bit_vector->bitmap);
+	}
+
+	return 0;
+}
+
