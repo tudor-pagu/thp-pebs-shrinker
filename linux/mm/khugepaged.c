@@ -2850,6 +2850,9 @@ out_nolock:
 
 // returns 0 when succesful
 int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
+	// allign the address down to the huge page boundary.
+	address = address & HPAGE_PMD_MASK;
+
 	struct collapse_control *cc;
 	cc = kmalloc(sizeof(*cc), GFP_KERNEL);
 	if (!cc) {
@@ -2857,8 +2860,9 @@ int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
 	}
 
 	cc->is_khugepaged = 0;
-	int ret = collapse_huge_page(mm, address, 0, 0, cc);
 	mmap_read_lock(mm);
+	// this function assumes mmap_read_lock is taken going in, but will release it.
+	int ret = collapse_huge_page(mm, address, 0, 0, cc);
 	return (ret == SCAN_SUCCEED ) ? 0 : -1;
 }
 
