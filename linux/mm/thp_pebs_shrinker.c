@@ -3,6 +3,7 @@
 #include "linux/highmem.h"
 #include "linux/kthread.h"
 #include "linux/llist.h"
+#include "linux/sysfs.h"
 #include <linux/huge_mm.h>
 #include "linux/mm.h"
 #include "linux/mm_types.h"
@@ -14,7 +15,6 @@
 #include <asm/tlb.h>
 #include "internal.h"
 #include "thp_pebs_shrinker.h"
-
 // int num_pages_considered = 0;
 // int num_pages_not_present = 0;
 // int num_pages_young = 0;
@@ -298,4 +298,68 @@ SYSCALL_DEFINE0(enable_thp_pebs_shrinking)
 	return ret;
 }
 
+// ----- SYSFS_START -----
 
+enum thp_pebs_shrinker_flag {
+	PEBS_SHRINKER_ENABLED,
+};
+
+static unsigned long thp_pebs_shrinker_flags = 0;
+
+static ssize_t pebs_enabled_show(struct kobject* kobj, struct kobj_attribute* attr, char *buf) {
+	const char* output;
+	if (test_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags)) {
+		output = "[enable] disable";
+	} else {
+		output = "enable [disable]";
+	}
+	return sysfs_emit(buf, "%s\n", output);
+}
+static ssize_t pebs_enabled_store(struct kobject *kobj, struct kobj_attribute *attr, const char* buf, size_t count) {
+	printk("in store\n");
+	ssize_t ret = count;
+	if (sysfs_streq(buf, "enable")) 
+		set_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
+	else if (sysfs_streq(buf, "disable"))
+		clear_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
+	else 
+		ret = -EINVAL;
+
+	return ret;
+}
+static struct kobj_attribute pebs_shrinker_enabled_attr = __ATTR_RW(pebs_enabled);
+static struct attribute *pebs_shrinker_attr[] = {
+	&pebs_shrinker_enabled_attr.attr,
+	NULL,
+};
+static const struct attribute_group pebs_shrinker_attr_group = {
+	.attrs = pebs_shrinker_attr
+};
+
+static int __init thp_pebs_shrinker_init(void) {
+	int err;
+	struct kobject *thp_pebs_shrinker_kobj;
+	thp_pebs_shrinker_kobj = kobject_create_and_add("thp_pebs_shrinker", mm_kobj);
+	if (unlikely(!thp_pebs_shrinker_kobj )) {
+		pr_err("failed to create thp pebs shrinker kobject\n");
+		return -ENOMEM;
+	}
+
+	err = sysfs_create_group(thp_pebs_shrinker_kobj, &pebs_shrinker_attr_group);
+	if (err) {
+		pr_err("failed to register thp pebs shrinker group\n");
+		goto delete_obj;
+	}
+
+	return 0;
+
+delete_obj:
+	kobject_put(thp_pebs_shrinker_kobj);
+	return err;
+}
+
+
+subsys_initcall(thp_pebs_shrinker_init);
+
+
+// --- SYSFS END -----
