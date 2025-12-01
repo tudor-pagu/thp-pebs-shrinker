@@ -279,22 +279,48 @@ int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 	return 0;
 }
 
-struct task_struct *collapser_thread;
+struct task_struct *collapser_thread = NULL;
 static DEFINE_MUTEX(collapser_mutex);
 
-static void thp_promoter_enable(void)
+static int thp_promoter_enable(void)
 {
-	// synchronize concurrent access to starting/stopping the collapser thread.
+	int ret = 0;
+	struct task_struct *t;
+
+	// hold the lock only while accessing the shared data, collapser_mutex
 	mutex_lock(&collapser_mutex);
-	collapser_thread = kthread_run(thp_collapser_thread, NULL,
-					"thp_collapser_thread");
+	// someone else already enabled the thread before us, let's give up.
+	if (collapser_thread != NULL) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+	
+	t = kthread_run(thp_collapser_thread, NULL, "thp_collapser_thread");
+	if (IS_ERR(t)) {
+		ret = PTR_ERR(t);
+		pr_err("Error starting thp_collapser_thread: %d\n", ret);
+	} else {
+		collapser_thread = t;
+	}
+
+unlock:
 	mutex_unlock(&collapser_mutex);
+	return ret;
 }
 
-static void thp_promoter_disable(void) {
+static void thp_promoter_disable(void)
+{
+	struct task_struct *t;
+
 	mutex_lock(&collapser_mutex);
-	kthread_stop(collapser_thread);
+	t = collapser_thread;
+	collapser_thread = NULL;
 	mutex_unlock(&collapser_mutex);
+
+	// we'd rather wait for the thread to stop while not holding the mutex.
+	if (t) {
+		kthread_stop(t);
+	}
 }
 
 // --- PEBS START ----
@@ -345,7 +371,8 @@ static void register_pebs(void)
 // --- PEBS END ---
 
 // ----- SYSFS_START -----
-static void enable_pebs_shrinker(void) {
+static void enable_pebs_shrinker(void)
+{
 	register_pebs();
 }
 
@@ -375,8 +402,7 @@ static ssize_t pebs_enabled_store(struct kobject *kobj,
 	if (sysfs_streq(buf, "enable")) {
 		enable_pebs_shrinker();
 		set_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
-	}
-	else if (sysfs_streq(buf, "disable"))
+	} else if (sysfs_streq(buf, "disable"))
 		clear_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
 	else
 		ret = -EINVAL;
@@ -384,8 +410,10 @@ static ssize_t pebs_enabled_store(struct kobject *kobj,
 	return ret;
 }
 
-static ssize_t thp_promoter_enabled_show(struct kobject *kobj, struct kobj_attribute *attr, char* buf) {
-	const char* output;
+static ssize_t thp_promoter_enabled_show(struct kobject *kobj,
+					 struct kobj_attribute *attr, char *buf)
+{
+	const char *output;
 	if (test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
 		output = "[enable] disable";
 	} else {
@@ -394,17 +422,23 @@ static ssize_t thp_promoter_enabled_show(struct kobject *kobj, struct kobj_attri
 	return sysfs_emit(buf, "%s\n", output);
 }
 
-static ssize_t thp_promoter_enabled_store(struct kobject *kobj, struct kobj_attribute *attr, char* buf, size_t count) {
+static ssize_t thp_promoter_enabled_store(struct kobject *kobj,
+					  struct kobj_attribute *attr,
+					  const char *buf, size_t count)
+{
 	ssize_t ret = count;
-	if (sysfs_streq(buf, "enable")) {
-		enable_thp_promoter();
-		set_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
-	}
-	else if (sysfs_streq(buf, "disable"))
-		disable_thp_promoter();
+	if (sysfs_streq(buf, "enable") && !test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		ret = thp_promoter_enable();
+		// it's importanat that we set the bit (atomically) AFTER actually doing the work, not before.
+		if (ret == 0) {
+			set_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
+		}
+	} else if (sysfs_streq(buf, "disable") && test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		thp_promoter_disable();
 		clear_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
-	else
+	} else {
 		ret = -EINVAL;
+	}
 
 	return ret;
 }
@@ -412,7 +446,8 @@ static ssize_t thp_promoter_enabled_store(struct kobject *kobj, struct kobj_attr
 static struct kobj_attribute pebs_shrinker_enabled_attr =
 	__ATTR_RW(pebs_enabled);
 
-static struct kobj_attribute thp_promoter_attr = __ATTR_RW(thp_promoter_enabled);
+static struct kobj_attribute thp_promoter_attr =
+	__ATTR_RW(thp_promoter_enabled);
 
 static struct attribute *pebs_shrinker_attr[] = {
 	&pebs_shrinker_enabled_attr.attr,
