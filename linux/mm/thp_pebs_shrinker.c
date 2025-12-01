@@ -282,26 +282,19 @@ int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 struct task_struct *collapser_thread;
 static DEFINE_MUTEX(collapser_mutex);
 
-SYSCALL_DEFINE0(enable_thp_pebs_shrinking)
+static void thp_promoter_enable(void)
 {
-	static bool thread_started = false;
-	int ret = 0;
-
+	// synchronize concurrent access to starting/stopping the collapser thread.
 	mutex_lock(&collapser_mutex);
-
-	if (thread_started) {
-		thread_started = false;
-		kthread_stop(collapser_thread);
-		ret = -1;
-	} else {
-		thread_started = true;
-		collapser_thread = kthread_run(thp_collapser_thread, NULL,
-					       "thp_collapser_thread");
-		ret = 0;
-	}
-
+	collapser_thread = kthread_run(thp_collapser_thread, NULL,
+					"thp_collapser_thread");
 	mutex_unlock(&collapser_mutex);
-	return ret;
+}
+
+static void thp_promoter_disable(void) {
+	mutex_lock(&collapser_mutex);
+	kthread_stop(collapser_thread);
+	mutex_unlock(&collapser_mutex);
 }
 
 // --- PEBS START ----
@@ -358,6 +351,7 @@ static void enable_pebs_shrinker(void) {
 
 enum thp_pebs_shrinker_flag {
 	PEBS_SHRINKER_ENABLED,
+	THP_PROMOTER,
 };
 
 static unsigned long thp_pebs_shrinker_flags = 0;
@@ -377,7 +371,6 @@ static ssize_t pebs_enabled_store(struct kobject *kobj,
 				  struct kobj_attribute *attr, const char *buf,
 				  size_t count)
 {
-	printk("in store\n");
 	ssize_t ret = count;
 	if (sysfs_streq(buf, "enable")) {
 		enable_pebs_shrinker();
@@ -390,8 +383,37 @@ static ssize_t pebs_enabled_store(struct kobject *kobj,
 
 	return ret;
 }
+
+static ssize_t thp_promoter_enabled_show(struct kobject *kobj, struct kobj_attribute *attr, char* buf) {
+	const char* output;
+	if (test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		output = "[enable] disable";
+	} else {
+		output = "enable [disable]";
+	}
+	return sysfs_emit(buf, "%s\n", output);
+}
+
+static ssize_t thp_promoter_enabled_store(struct kobject *kobj, struct kobj_attribute *attr, char* buf, size_t count) {
+	ssize_t ret = count;
+	if (sysfs_streq(buf, "enable")) {
+		enable_thp_promoter();
+		set_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
+	}
+	else if (sysfs_streq(buf, "disable"))
+		disable_thp_promoter();
+		clear_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
+	else
+		ret = -EINVAL;
+
+	return ret;
+}
+
 static struct kobj_attribute pebs_shrinker_enabled_attr =
 	__ATTR_RW(pebs_enabled);
+
+static struct kobj_attribute thp_promoter_attr = __ATTR_RW(thp_promoter_enabled);
+
 static struct attribute *pebs_shrinker_attr[] = {
 	&pebs_shrinker_enabled_attr.attr,
 	NULL,
