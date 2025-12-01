@@ -186,6 +186,15 @@
 // 	return result;
 // }
 
+enum thp_pebs_shrinker_flag {
+	PEBS_SHRINKER_ENABLED,
+	THP_PROMOTER,
+};
+
+// flags for what is enabled and what isn't.
+
+static unsigned long thp_pebs_shrinker_flags = 0;
+
 struct utilization_bit_vector {
 	DECLARE_BITMAP(bitmap, 512);
 };
@@ -233,6 +242,10 @@ static int thp_collapser_thread(void *data)
 int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 					unsigned long addr, int nr_pages)
 {
+	if (!test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		// exit early if we disabled this behavior.
+		return 0;
+	}
 	// I'm assuming this can't ever happen. If it does happen,
 	// I want to know about it
 	BUG_ON(nr_pages > 512);
@@ -294,7 +307,7 @@ static int thp_promoter_enable(void)
 		ret = -EINVAL;
 		goto unlock;
 	}
-	
+
 	t = kthread_run(thp_collapser_thread, NULL, "thp_collapser_thread");
 	if (IS_ERR(t)) {
 		ret = PTR_ERR(t);
@@ -376,13 +389,6 @@ static void enable_pebs_shrinker(void)
 	register_pebs();
 }
 
-enum thp_pebs_shrinker_flag {
-	PEBS_SHRINKER_ENABLED,
-	THP_PROMOTER,
-};
-
-static unsigned long thp_pebs_shrinker_flags = 0;
-
 static ssize_t pebs_enabled_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
 {
@@ -427,13 +433,16 @@ static ssize_t thp_promoter_enabled_store(struct kobject *kobj,
 					  const char *buf, size_t count)
 {
 	ssize_t ret = count;
-	if (sysfs_streq(buf, "enable") && !test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
-		ret = thp_promoter_enable();
-		// it's importanat that we set the bit (atomically) AFTER actually doing the work, not before.
-		if (ret == 0) {
+	if (sysfs_streq(buf, "enable") &&
+	    !test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		int res = thp_promoter_enable();
+		if (res != 0) {
+			ret = res;
+		} else {
 			set_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
 		}
-	} else if (sysfs_streq(buf, "disable") && test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+	} else if (sysfs_streq(buf, "disable") &&
+		   test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
 		thp_promoter_disable();
 		clear_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
 	} else {
