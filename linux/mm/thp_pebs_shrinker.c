@@ -460,6 +460,7 @@ static struct kobj_attribute thp_promoter_attr =
 
 static struct attribute *pebs_shrinker_attr[] = {
 	&pebs_shrinker_enabled_attr.attr,
+	&thp_promoter_attr.attr,
 	NULL,
 };
 static const struct attribute_group pebs_shrinker_attr_group = {
