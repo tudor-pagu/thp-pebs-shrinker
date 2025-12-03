@@ -233,6 +233,7 @@ static int thp_collapser_thread(void *data)
 int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 					unsigned long addr, int nr_pages)
 {
+	return 0;
 	// I'm assuming this can't ever happen. If it does happen,
 	// I want to know about it
 	BUG_ON(nr_pages > 512);
@@ -339,13 +340,13 @@ static void register_pebs(void)
 	evt = perf_event_create_kernel_counter(
 		wd_attr, cpu, NULL, watchdog_overflow_callback, NULL);
 	if (IS_ERR(evt)) {
-		printk("failed to create event...\n");
+		printk("december failed to create event...\n");
 		long err = PTR_ERR(evt);
 		pr_err("perf: create failed cpu=%u err=%ld\n", cpu, err);
 		return;
 	} else {
 		registered = true;
-		printk("created event!\n");
+		printk("december created event!\n");
 	}
 }
 
