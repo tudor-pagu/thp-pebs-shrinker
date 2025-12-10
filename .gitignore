@@ -6,3 +6,7 @@
 .Module.symvers.cmd
 .module*
 .cache
+.config
+.compile_commands.json
+.vscode-ctags
+.vscode
