@@ -186,6 +186,15 @@
 // 	return result;
 // }
 
+enum thp_pebs_shrinker_flag {
+	PEBS_SHRINKER_ENABLED,
+	THP_PROMOTER,
+};
+
+// flags for what is enabled and what isn't.
+
+static unsigned long thp_pebs_shrinker_flags = 0;
+
 struct utilization_bit_vector {
 	DECLARE_BITMAP(bitmap, 512);
 };
@@ -233,6 +242,10 @@ static int thp_collapser_thread(void *data)
 int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 					unsigned long addr, int nr_pages)
 {
+	if (!test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		// exit early if we disabled this behavior.
+		return 0;
+	}
 	// I'm assuming this can't ever happen. If it does happen,
 	// I want to know about it
 	BUG_ON(nr_pages > 512);
@@ -279,29 +292,48 @@ int record_page_fault_for_thp_shrinking(struct mm_struct *mm,
 	return 0;
 }
 
-struct task_struct *collapser_thread;
+struct task_struct *collapser_thread = NULL;
 static DEFINE_MUTEX(collapser_mutex);
 
-SYSCALL_DEFINE0(enable_thp_pebs_shrinking)
+static int thp_promoter_enable(void)
 {
-	static bool thread_started = false;
 	int ret = 0;
+	struct task_struct *t;
 
+	// hold the lock only while accessing the shared data, collapser_mutex
 	mutex_lock(&collapser_mutex);
-
-	if (thread_started) {
-		thread_started = false;
-		kthread_stop(collapser_thread);
-		ret = -1;
-	} else {
-		thread_started = true;
-		collapser_thread = kthread_run(thp_collapser_thread, NULL,
-					       "thp_collapser_thread");
-		ret = 0;
+	// someone else already enabled the thread before us, let's give up.
+	if (collapser_thread != NULL) {
+		ret = -EINVAL;
+		goto unlock;
 	}
 
+	t = kthread_run(thp_collapser_thread, NULL, "thp_collapser_thread");
+	if (IS_ERR(t)) {
+		ret = PTR_ERR(t);
+		pr_err("Error starting thp_collapser_thread: %d\n", ret);
+	} else {
+		collapser_thread = t;
+	}
+
+unlock:
 	mutex_unlock(&collapser_mutex);
 	return ret;
+}
+
+static void thp_promoter_disable(void)
+{
+	struct task_struct *t;
+
+	mutex_lock(&collapser_mutex);
+	t = collapser_thread;
+	collapser_thread = NULL;
+	mutex_unlock(&collapser_mutex);
+
+	// we'd rather wait for the thread to stop while not holding the mutex.
+	if (t) {
+		kthread_stop(t);
+	}
 }
 
 // --- PEBS START ----
@@ -352,15 +384,10 @@ static void register_pebs(void)
 // --- PEBS END ---
 
 // ----- SYSFS_START -----
-static void enable_pebs_shrinker(void) {
+static void enable_pebs_shrinker(void)
+{
 	register_pebs();
 }
-
-enum thp_pebs_shrinker_flag {
-	PEBS_SHRINKER_ENABLED,
-};
-
-static unsigned long thp_pebs_shrinker_flags = 0;
 
 static ssize_t pebs_enabled_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
@@ -377,23 +404,63 @@ static ssize_t pebs_enabled_store(struct kobject *kobj,
 				  struct kobj_attribute *attr, const char *buf,
 				  size_t count)
 {
-	printk("in store\n");
 	ssize_t ret = count;
 	if (sysfs_streq(buf, "enable")) {
 		enable_pebs_shrinker();
 		set_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
-	}
-	else if (sysfs_streq(buf, "disable"))
+	} else if (sysfs_streq(buf, "disable"))
 		clear_bit(PEBS_SHRINKER_ENABLED, &thp_pebs_shrinker_flags);
 	else
 		ret = -EINVAL;
 
 	return ret;
 }
+
+static ssize_t thp_promoter_enabled_show(struct kobject *kobj,
+					 struct kobj_attribute *attr, char *buf)
+{
+	const char *output;
+	if (test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		output = "[enable] disable";
+	} else {
+		output = "enable [disable]";
+	}
+	return sysfs_emit(buf, "%s\n", output);
+}
+
+static ssize_t thp_promoter_enabled_store(struct kobject *kobj,
+					  struct kobj_attribute *attr,
+					  const char *buf, size_t count)
+{
+	ssize_t ret = count;
+	if (sysfs_streq(buf, "enable") &&
+	    !test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		int res = thp_promoter_enable();
+		if (res != 0) {
+			ret = res;
+		} else {
+			set_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
+		}
+	} else if (sysfs_streq(buf, "disable") &&
+		   test_bit(THP_PROMOTER, &thp_pebs_shrinker_flags)) {
+		thp_promoter_disable();
+		clear_bit(THP_PROMOTER, &thp_pebs_shrinker_flags);
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static struct kobj_attribute pebs_shrinker_enabled_attr =
 	__ATTR_RW(pebs_enabled);
+
+static struct kobj_attribute thp_promoter_attr =
+	__ATTR_RW(thp_promoter_enabled);
+
 static struct attribute *pebs_shrinker_attr[] = {
 	&pebs_shrinker_enabled_attr.attr,
+	&thp_promoter_attr.attr,
 	NULL,
 };
 static const struct attribute_group pebs_shrinker_attr_group = {

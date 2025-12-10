@@ -391,7 +391,6 @@
 465	common	listxattrat		sys_listxattrat
 466	common	removexattrat		sys_removexattrat
 467	common	open_tree_attr		sys_open_tree_attr
-468 common enable_thp_pebs_shrinking sys_enable_thp_pebs_shrinking
 
 #
 # Due to a historical design error, certain syscalls are numbered differently
