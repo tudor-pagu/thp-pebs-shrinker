@@ -1,1 +1,0 @@
-savedcmd_pebs_test.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /home/advos1/thp-pebs-shrinker/linux/scripts/module.lds -o pebs_test.ko pebs_test.o pebs_test.mod.o .module-common.o
