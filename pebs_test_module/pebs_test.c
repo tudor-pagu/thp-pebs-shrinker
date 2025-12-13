@@ -110,11 +110,11 @@ static int __init pebs_test_init(void) {
 
     attr.type           = PERF_TYPE_RAW;
     attr.config         = 0x81d0; // 0x81d0 - ALL_LOADS, 0x82d0 - ALL_STORES
-    attr.sample_period  = 100;
+    attr.sample_period  = 10000;
     attr.sample_type    = PERF_SAMPLE_IP | PERF_SAMPLE_ADDR;
     attr.precise_ip     = 2; // enable PEBS
     attr.size           = sizeof(attr);
-    attr.wakeup_events  = 100;
+    attr.wakeup_events  = 1;
     attr.exclude_kernel = 1;
 
     pebs_events[0] = perf_event_create_kernel_counter(&attr, -1, task, pebs_callback, NULL);

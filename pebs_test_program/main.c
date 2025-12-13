@@ -19,7 +19,7 @@ int main() {
 
     getchar();
 
-    for (int repeat = 0; repeat < 1000; ++repeat) {
+    for (int repeat = 0; repeat < 100; ++repeat) {
         for (int j = 0; j < 5; ++j) {
             for (int i = huge_pg_size * j; i < huge_pg_size * (j + 1); ++i) {
                 a[i] = 'a';
