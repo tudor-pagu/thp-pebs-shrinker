@@ -24,7 +24,7 @@ int main() {
     arg.size = sizeof(arg);
     arg.attr = &attr;
 
-    const char* event_name = "MEM_INST_RETIRED.ALL_LOADS";
+    const char* event_name = "MEM_INST_RETIRED.ALL_STORES";
 
     // Get encoding for perf_event
     ret = pfm_get_os_event_encoding(event_name, PFM_PLM0 | PFM_PLM3, PFM_OS_PERF_EVENT, &arg);
