@@ -1,0 +1,119 @@
+pebs@pebs:/mnt/hostshare/userspace$ ./test_hugepage
+Step 0: Check that THP split module is loaded.
+You should see 'thp_split' in the output:
+thp_split              16384  0
+Press Enter to continue...
+
+
+Step 1: Allocated 2MB hugepage at 0x7f9138000000 (PID 4644)
+Step 1a: Before touching memory, check /proc/<pid>/smaps snippet.
+
+--- smaps before touching memory ---
+7f9138000000-7f9138200000 rw-p 00000000 00:00 0 
+Size:               2048 kB
+KernelPageSize:        4 kB
+MMUPageSize:           4 kB
+Rss:                   0 kB
+Pss:                   0 kB
+Pss_Dirty:             0 kB
+Shared_Clean:          0 kB
+Shared_Dirty:          0 kB
+Private_Clean:         0 kB
+Private_Dirty:         0 kB
+Referenced:            0 kB
+Anonymous:             0 kB
+KSM:                   0 kB
+LazyFree:              0 kB
+AnonHugePages:         0 kB
+ShmemPmdMapped:        0 kB
+FilePmdMapped:         0 kB
+Shared_Hugetlb:        0 kB
+Private_Hugetlb:       0 kB
+Swap:                  0 kB
+SwapPss:               0 kB
+Locked:                0 kB
+THPeligible:           1
+ProtectionKey:         0
+VmFlags: rd wr mr mw me ac 
+Explanation: AnonHugePages should be 0 before writing.
+Press Enter to continue...
+
+
+Step 2: Touch memory with pattern 0..255 to ensure allocation.
+Memory touched with pattern 0..255.
+
+--- smaps after touching memory ---
+7f9138000000-7f9138200000 rw-p 00000000 00:00 0 
+Size:               2048 kB
+KernelPageSize:        4 kB
+MMUPageSize:           4 kB
+Rss:                2048 kB
+Pss:                2048 kB
+Pss_Dirty:          2048 kB
+Shared_Clean:          0 kB
+Shared_Dirty:          0 kB
+Private_Clean:         0 kB
+Private_Dirty:      2048 kB
+Referenced:         2048 kB
+Anonymous:          2048 kB
+KSM:                   0 kB
+LazyFree:              0 kB
+AnonHugePages:      2048 kB
+ShmemPmdMapped:        0 kB
+FilePmdMapped:         0 kB
+Shared_Hugetlb:        0 kB
+Private_Hugetlb:       0 kB
+Swap:                  0 kB
+SwapPss:               0 kB
+Locked:                0 kB
+THPeligible:           1
+ProtectionKey:         0
+VmFlags: rd wr mr mw me ac 
+Explanation: AnonHugePages should now be 2048 kB, showing a hugepage was used.
+Press Enter to continue...
+
+
+Step 3: Execute THP split via module.
+Command: echo "4644 0x7f9138000000" | sudo tee /proc/thp_split
+4644 0x7f9138000000
+
+Step 4: Check last kernel message confirming split.
+[ 6019.019609] thp_split: split_huge_page successful for VA 0x7f9138000000
+Explanation: Should show 'split_huge_page successful'.
+
+Step 5: Display /proc/<pid>/smaps snippet after splitting.
+
+--- smaps after splitting ---
+7f9138000000-7f9138200000 rw-p 00000000 00:00 0 
+Size:               2048 kB
+KernelPageSize:        4 kB
+MMUPageSize:           4 kB
+Rss:                2048 kB
+Pss:                2048 kB
+Pss_Dirty:          2048 kB
+Shared_Clean:          0 kB
+Shared_Dirty:          0 kB
+Private_Clean:         0 kB
+Private_Dirty:      2048 kB
+Referenced:         2048 kB
+Anonymous:          2048 kB
+KSM:                   0 kB
+LazyFree:              0 kB
+AnonHugePages:         0 kB
+ShmemPmdMapped:        0 kB
+FilePmdMapped:         0 kB
+Shared_Hugetlb:        0 kB
+Private_Hugetlb:       0 kB
+Swap:                  0 kB
+SwapPss:               0 kB
+Locked:                0 kB
+THPeligible:           1
+ProtectionKey:         0
+VmFlags: rd wr mr mw me ac 
+Explanation: AnonHugePages should now be 0, confirming split.
+Press Enter to continue...
+
+
+Step 6: Verify memory pattern remains intact.
+Memory verification successful! Pattern intact.
+Demo complete.

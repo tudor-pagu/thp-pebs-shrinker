@@ -3979,6 +3979,7 @@ int split_huge_page_to_list_to_order(struct page *page, struct list_head *list,
 
 	return __folio_split(folio, new_order, &folio->page, page, list, true);
 }
+EXPORT_SYMBOL_GPL(split_huge_page_to_list_to_order);
 
 /*
  * folio_split: split a folio at @split_at to a @new_order folio
@@ -4022,6 +4023,7 @@ int min_order_for_split(struct folio *folio)
 
 	return mapping_min_folio_order(folio->mapping);
 }
+EXPORT_SYMBOL_GPL(min_order_for_split);
 
 int split_folio_to_list(struct folio *folio, struct list_head *list)
 {

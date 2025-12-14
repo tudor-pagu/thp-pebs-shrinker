@@ -2848,8 +2848,47 @@ out_nolock:
 }
 
 
+// recreate a very simplified version of the scanning khugepgaed normally does
+static int count_referenced_unmaped(struct mm_struct *mm, unsigned long address, int* referenced, int *unmapped) {
+	unsigned long _address;
+	pmd_t *pmd;
+	pte_t *pte, *_pte;
+
+	*referenced = 0;
+	*unmapped = 0;
+
+	int result = find_pmd_or_thp_or_none(mm, address, &pmd);
+	if (result != SCAN_SUCCEED) {
+		return SCAN_FAIL;
+	}
+
+	spinlock_t *ptl;
+	pte = pte_offset_map_lock(mm, pmd, address, &ptl);
+
+	for (_address = address, _pte = pte; _pte < pte + HPAGE_PMD_NR;
+      _pte++, _address += PAGE_SIZE) {
+		pte_t pteval = ptep_get(_pte);
+		if (pte_none(pteval)) {
+			(*unmapped)++;
+			continue;
+		}
+
+		if (!pte_present(pteval)) {
+			(*unmapped)++;
+			continue;
+		}
+
+		(*referenced)++;
+	}
+	pte_unmap_unlock(pte, ptl);
+	return SCAN_SUCCEED;
+}
+
+// reuse the kernel's page collapsing mechanism, but wrap it so it's safe to call
+// from other threads other than khugepgaed
 // returns 0 when succesful
 int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
+	int ret = SCAN_SUCCEED;
 	// allign the address down to the huge page boundary.
 	address = address & HPAGE_PMD_MASK;
 
@@ -2861,8 +2900,18 @@ int thp_collapse_anonymous_pmd(struct mm_struct *mm, unsigned long address) {
 
 	cc->is_khugepaged = 0;
 	mmap_read_lock(mm);
+	int referenced = 0;
+	int unmapped = 0;
+	if (count_referenced_unmaped(mm, address, &referenced, &unmapped) != SCAN_SUCCEED) {
+		mmap_read_unlock(mm);
+		ret = SCAN_FAIL;
+		goto free;
+	}
+
 	// this function assumes mmap_read_lock is taken going in, but will release it.
-	int ret = collapse_huge_page(mm, address, 0, 0, cc);
+	ret = collapse_huge_page(mm, address, referenced, unmapped, cc);
+free:
+	kfree(cc);
 	return (ret == SCAN_SUCCEED ) ? 0 : -1;
 }
 
