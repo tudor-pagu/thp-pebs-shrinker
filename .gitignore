@@ -9,3 +9,5 @@
 .compile_commands.json
 .vscode-ctags
 .vscode
+pebs_split_program/main
+program_launcher/launch

@@ -76,6 +76,8 @@ int main()
         exit(1);
     }
 
+    madvise(ptr, sz, MADV_HUGEPAGE); // Advise kernel to use hugepages
+
     // STEP 0: Ask user to check that the thp_split kernel module is loaded.
     // This module is required for splitting hugepages via /proc/thp_split.
     printf("Step 0: Check that THP split module is loaded.\n");

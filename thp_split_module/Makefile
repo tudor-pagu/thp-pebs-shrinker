@@ -1,6 +1,6 @@
 obj-m += thp_split.o
 
-KDIR := /usr/src/linux-6.15.0
+KDIR := /home/advos1/thp-pebs-shrinker/linux
 ccflags-y := -Wno-error=unused-function
 
 all:
