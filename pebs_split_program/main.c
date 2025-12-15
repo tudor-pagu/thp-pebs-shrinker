@@ -18,7 +18,7 @@ int main() {
     char* a = p;
 
     while (1) {
-        for (int i = 0; i < huge_pg_size; ++i) {
+        for (int i = 0; i < pg_size; ++i) {
             a[i] = 'a';
         }
     }
