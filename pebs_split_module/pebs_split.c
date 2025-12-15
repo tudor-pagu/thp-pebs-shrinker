@@ -1,4 +1,3 @@
-#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/perf_event.h>
@@ -73,8 +72,8 @@ static void pebs_callback(struct perf_event *event,
     }
 
     // update the page info
-    unsigned long thp_index = page_to_pfn(head);
-    unsigned long subpage_idx = page_to_pfn(page) - thp_index;
+    unsigned long thp_index = uaddr >> HPAGE_SHIFT;
+    unsigned long subpage_idx = page_to_pfn(page) - page_to_pfn(head);
 
     put_page(page);
     mmap_read_unlock(task->mm);
@@ -83,12 +82,15 @@ static void pebs_callback(struct perf_event *event,
     if (!info) {
         info = kzalloc(sizeof(*info), GFP_KERNEL);
         if (!info) {
-            pr_err("pebs_callback: failed to allocate bitmap for THP at pfn 0x%lx\n", thp_index);
+            pr_err("pebs_callback: failed to allocate bitmap for THP at idx 0x%lx\n", thp_index);
             return;
         }
         if (xa_store(&thp_xarray, thp_index, info, GFP_KERNEL) != NULL) {
             kfree(info);
             info = xa_load(&thp_xarray, thp_index);
+        }
+        else {
+            pr_info("pebs_callback: created a bitmap for THP at  0x%lx\n", thp_index);
         }
     }
     set_bit(subpage_idx, info->sub_pages_bitmap);
@@ -98,24 +100,66 @@ static void pebs_callback(struct perf_event *event,
     // pr_info("pebs_callback: info update - thp %lu, sub-page %lu\n", thp_index, subpage_idx);
 }
 
-static bool process_still_alive(int process_pid) {
+static struct task_struct *lookup_task(int process_pid) {
     struct pid *pid_struct = find_get_pid(process_pid);
     if (!pid_struct) {
-        return false;
+        return NULL;
     }
 
     struct task_struct *task = pid_task(pid_struct, PIDTYPE_PID);
     if (!task) {
-        return false;
+        return NULL;
     }
 
-    return true;
+    return task;
+}
+
+// Helper function: split a huge page given a page VA and mm_struct
+static int split_sparse_hugepage(struct mm_struct *mm, unsigned long page_uaddr) {
+    unsigned long uaddr = page_uaddr << HPAGE_SHIFT;
+
+    struct page *page = NULL;
+    long ret;
+    int locked = 1;
+
+    mmap_read_lock(mm);
+
+    ret = get_user_pages_remote(mm, uaddr, 1,
+                                FOLL_WRITE | FOLL_GET, &page, &locked);
+    if (ret <= 0)
+    {
+        printk(KERN_ERR "thp_split: get_user_pages_remote failed for VA 0x%lx, ret=%ld\n",
+               uaddr, ret);
+        mmap_read_unlock(mm);
+        return (int)ret;
+    }
+
+    if (!PageTransHuge(page))
+    {
+        printk(KERN_ERR "thp_split: page at VA 0x%lx is not THP\n", uaddr);
+        put_page(page);
+        mmap_read_unlock(mm);
+        return -EINVAL;
+    }
+
+    ret = split_huge_page(page);
+
+    if (ret == 0)
+        printk(KERN_INFO "thp_split: split_huge_page successful for VA 0x%lx\n", uaddr);
+    else
+        printk(KERN_ERR "thp_split: split_huge_page failed, ret=%ld\n", ret);
+
+    put_page(page);
+    mmap_read_unlock(mm);
+    return (int)ret;
 }
 
 static void check_huge_pages(void) {
     pr_info("checking huge pages\n");
 
-    if (!process_still_alive(tracked_pid)) {
+    struct task_struct *tracked_task = lookup_task(tracked_pid);
+
+    if (!tracked_task) {
         pr_err("check_huge_pages: the process is no longer alive\n");
         return;
     }
@@ -128,20 +172,13 @@ static void check_huge_pages(void) {
         }
         unsigned int used_subpages = bitmap_weight(info->sub_pages_bitmap, HPAGE_PMD_NR);
         if (used_subpages < 64) {
-            if (!pfn_valid(thp_index)) {
-                pr_err("check_huge_pages: invalid pfn number 0x%lx\n", thp_index);
-                continue;
-            }
-
-            struct page *sparse_page = pfn_to_page(thp_index);
-
-            if (!PageTransHuge(sparse_page)) {
-                pr_err("check_huge_pages: a page is not huge 0x%lx\n", thp_index);
-                continue;
-            }
-
             pr_info("check_huge_pages: decided to split a page 0x%lx, density=%d\n", thp_index, used_subpages);
-            split_huge_page(sparse_page);
+            int ret = split_sparse_hugepage(tracked_task->mm, thp_index);
+            if (ret < 0) {
+                pr_err("check_huge_pages: split failed page_uaddr 0x%lx, ret=%d\n", thp_index, ret);
+            } else {
+                pr_info("check_huge_pages: split successful page_uaddr 0x%lx\n", thp_index);
+            }
 
             kfree(info);
             // store NULL because the page no longer exists
@@ -210,7 +247,7 @@ static void __exit pebs_split_exit(void) {
     xa_for_each(&thp_xarray, thp_index, info) {
         if (info) {
             unsigned int set_bits = bitmap_weight(info->sub_pages_bitmap, HPAGE_PMD_NR);
-            pr_info("THP at pfn 0x%lx - sub-pages used %u\n",  thp_index, set_bits);
+            pr_info("THP at idx 0x%lx - sub-pages used %u\n",  thp_index, set_bits);
         }
     }
 
