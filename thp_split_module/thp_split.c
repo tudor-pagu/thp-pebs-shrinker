@@ -6,6 +6,7 @@
 #include <linux/uaccess.h> // copy_to_user, copy_from_user
 #include <linux/sched.h>   // pid_task, find_get_task
 #include <linux/pid.h>     // pid structures
+#include <linux/pagemap.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Mohamed Taha GUELZIM");
@@ -40,7 +41,9 @@ static int my_split_hugepage_pid(struct mm_struct *mm, unsigned long uaddr)
         return -EINVAL;
     }
 
+    lock_page(page);
     ret = split_huge_page(page);
+    unlock_page(page);
 
     if (ret == 0)
         printk(KERN_INFO "thp_split: split_huge_page successful for VA 0x%lx\n", uaddr);
