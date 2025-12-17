@@ -26,7 +26,7 @@ static void pebs_callback(struct perf_event *event,
     }
 
     if (data->addr >= TASK_SIZE_MAX) {
-        // access a kernel address
+        // access to a kernel address, ignore
         return;
     }
 
@@ -67,8 +67,8 @@ static void pebs_callback(struct perf_event *event,
     }
 
     // update the page info
-    unsigned long thp_index = page_to_pfn(head);
-    unsigned long subpage_idx = page_to_pfn(page) - thp_index;
+    unsigned long thp_index = uaddr >> HPAGE_SHIFT;
+    unsigned long subpage_idx = page_to_pfn(page) - page_to_pfn(head);
 
     put_page(page);
     mmap_read_unlock(task->mm);
@@ -77,12 +77,15 @@ static void pebs_callback(struct perf_event *event,
     if (!info) {
         info = kzalloc(sizeof(*info), GFP_KERNEL);
         if (!info) {
-            pr_err("pebs_callback: failed to allocate bitmap for THP at pfn 0x%lx\n", thp_index);
+            pr_err("pebs_callback: failed to allocate bitmap for THP at idx 0x%lx\n", thp_index);
             return;
         }
         if (xa_store(&thp_xarray, thp_index, info, GFP_KERNEL) != NULL) {
             kfree(info);
             info = xa_load(&thp_xarray, thp_index);
+        }
+        else {
+            pr_info("pebs_callback: created a bitmap for THP at index 0x%lx, because of the address 0x%lx\n", thp_index, uaddr);
         }
     }
     set_bit(subpage_idx, info->sub_pages_bitmap);
@@ -136,7 +139,7 @@ static void __exit pebs_test_exit(void) {
     xa_for_each(&thp_xarray, thp_index, info) {
         if (info) {
             unsigned int set_bits = bitmap_weight(info->sub_pages_bitmap, HPAGE_PMD_NR);
-            pr_info("THP at pfn 0x%lx - sub-pages used %u\n",  thp_index, set_bits);
+            pr_info("THP at huge page at index 0x%lx, uaddr 0x%lx - sub-pages used %u\n",  thp_index, (thp_index << HPAGE_SHIFT), set_bits);
         }
     }
 

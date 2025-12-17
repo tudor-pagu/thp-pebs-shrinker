@@ -17,8 +17,6 @@ int main() {
 
     char* a = p;
 
-    getchar();
-
     for (int repeat = 0; repeat < 100; ++repeat) {
         for (int j = 0; j < 5; ++j) {
             for (int i = huge_pg_size * j; i < huge_pg_size * (j + 1); ++i) {
@@ -32,9 +30,6 @@ int main() {
         }
     }
 
-    getchar();
-    getchar();
-
     // print some addresses to check if necessary
     {
         int j = 9;
@@ -42,6 +37,8 @@ int main() {
             printf("%p\n", &(a[i]));
         }
     }
+
+    while (1) {}
 
     if (munmap(p, n) != 0)  {
         perror("munmap");

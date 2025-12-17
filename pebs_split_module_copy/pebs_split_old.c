@@ -6,7 +6,6 @@
 #include <linux/uaccess.h> // copy_to_user, copy_from_user
 #include <linux/sched.h>   // pid_task, find_get_task
 #include <linux/pid.h>     // pid structures
-#include <linux/pagemap.h>
 
 
 static struct perf_event *pebs_events[2] = {NULL, NULL};
@@ -143,9 +142,7 @@ static int split_sparse_hugepage(struct mm_struct *mm, unsigned long page_uaddr)
         return -EINVAL;
     }
 
-    lock_page(page);
     ret = split_huge_page(page);
-    unlock_page(page);
 
     if (ret == 0)
         printk(KERN_INFO "thp_split: split_huge_page successful for VA 0x%lx\n", uaddr);
@@ -158,6 +155,8 @@ static int split_sparse_hugepage(struct mm_struct *mm, unsigned long page_uaddr)
 }
 
 static void check_huge_pages(void) {
+    pr_info("checking huge pages\n");
+
     struct task_struct *tracked_task = lookup_task(tracked_pid);
 
     if (!tracked_task) {
@@ -184,8 +183,6 @@ static void check_huge_pages(void) {
             kfree(info);
             // store NULL because the page no longer exists
             xa_store(&thp_xarray, thp_index, NULL, GFP_KERNEL);
-        } else {
-            bitmap_zero(info->sub_pages_bitmap, HPAGE_PMD_NR);
         }
     }
 }
@@ -193,7 +190,7 @@ static void check_huge_pages(void) {
 
 static int thp_split_thread_func(void *data) {
     while (!kthread_should_stop()) {
-        msleep(10000);
+        msleep(10);
         check_huge_pages();
     }
     return 0;

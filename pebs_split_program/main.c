@@ -13,12 +13,13 @@ int main() {
         perror("mmap");
         return 1;
     }
-    madvise(p, n, MADV_HUGEPAGE);
-
     char* a = p;
+    madvise(p, n, MADV_HUGEPAGE);
+    a[0] = 'a';
+    madvise(p, n, MADV_NOHUGEPAGE);
 
     while (1) {
-        for (int i = 0; i < pg_size; ++i) {
+        for (int i = 0; i < huge_pg_size; ++i) {
             a[i] = 'a';
         }
     }
