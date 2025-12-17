@@ -1,0 +1,13 @@
+*.o
+*.ko
+*.mod*
+*.cmd
+./.*
+*~
+*.out
+modules.order
+Module.symvers
+sign_modules.sh
+results
+.clangd
+compile_commands.json

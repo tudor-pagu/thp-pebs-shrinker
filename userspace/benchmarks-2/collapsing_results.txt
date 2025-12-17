@@ -1,0 +1,131 @@
+advos1@rs3lab-OptiPlex-7090:~/thp-pebs-shrinker/userspace/benchmarks-2$ # DISABLED THP
+advos1@rs3lab-OptiPlex-7090:~/thp-pebs-shrinker/userspace/benchmarks-2$ ./collapsing
+=== THP Collapsing Benchmark ===
+Configuration:
+  - Total memory: 1024 MB (512 regions x 2MB)
+  - Iterations: 10000
+  - PID: 22794
+  - Monitoring: /proc/meminfo AnonHugePages
+
+Memory allocated at: 0x78a083800000
+✓ Memory is 2MB-aligned (good for THP)
+THP is disabled initially - pages will be 4KB base pages
+Run with THP collapser to promote these to huge pages
+
+Initializing memory with pattern...
+
+Memory regions (for THP collapser):
+  Region 0: 0x78a083800000
+  Region 1: 0x78a083a00000
+  ...
+  Region 511: 0x78a0c3600000
+  (Total: 512 regions)
+
+Initial memory state:
+  RSS: 1050224 KB (1025.6 MB)
+  AnonHugePages (system): 147456 KB
+
+Warming up... (allocating physical pages)
+Warmup complete (checksum: 136902082560)
+After warmup RSS: 1050352 KB (1025.7 MB)
+
+Ready for THP collapser. Waiting 5 seconds...
+(Enable collapser now if not already running)
+
+=== Starting Benchmark ===
+
+    Iter      Time(s)   AnonHP(KB)    IterTime(ms)
+--------------------------------------------------
+       0        0.013       147456          12.637
+    1000        7.882       147456           7.869
+    2000       15.739       147456           7.857
+    3000       23.594       147456           7.856
+    4000       31.450       147456           7.855
+    5000       39.286       147456           7.837
+    6000       47.153       147456           7.867
+    7000       55.007       147456           7.854
+    8000       62.856       147456           7.849
+    9000       70.673       147456           7.817
+    9999       78.556       147456           7.891
+
+=== Benchmark Complete ===
+Total time: 78.556 seconds
+Average iteration time: 7.856 ms
+Iterations per second: 127.30
+Memory throughput: 127.30 GB/s
+
+Final checksum: 136924626944
+
+Final memory state:
+  RSS: 1050492 KB (1025.9 MB)
+  AnonHugePages: 147456 KB (144.0 MB)
+  Delta AnonHugePages: +0 KB (0.0 MB)
+
+○ No THP promotion detected (collapser not active or not effective)
+advos1@rs3lab-OptiPlex-7090:~/thp-pebs-shrinker/userspace/benchmarks-2$ echo enable | sudo tee /sys/kernel/mm/thp_pebs_shrinker/thp_promoter_enabled
+enable
+advos1@rs3lab-OptiPlex-7090:~/thp-pebs-shrinker/userspace/benchmarks-2$ ./collapsing
+=== THP Collapsing Benchmark ===
+Configuration:
+  - Total memory: 1024 MB (512 regions x 2MB)
+  - Iterations: 10000
+  - PID: 22806
+  - Monitoring: /proc/meminfo AnonHugePages
+
+Memory allocated at: 0x75c608600000
+✓ Memory is 2MB-aligned (good for THP)
+THP is disabled initially - pages will be 4KB base pages
+Run with THP collapser to promote these to huge pages
+
+Initializing memory with pattern...
+
+Memory regions (for THP collapser):
+  Region 0: 0x75c608600000
+  Region 1: 0x75c608800000
+  ...
+  Region 511: 0x75c648400000
+  (Total: 512 regions)
+
+Initial memory state:
+  RSS: 1049968 KB (1025.4 MB)
+  AnonHugePages (system): 892928 KB
+
+Warming up... (allocating physical pages)
+Warmup complete (checksum: 136902082560)
+After warmup RSS: 1050096 KB (1025.5 MB)
+
+Ready for THP collapser. Waiting 5 seconds...
+(Enable collapser now if not already running)
+
+=== Starting Benchmark ===
+
+    Iter      Time(s)   AnonHP(KB)    IterTime(ms)
+--------------------------------------------------
+       0        0.012      1185792          12.041 ← THP ACTIVE!
+    1000        7.424      1185792           7.411 ← THP ACTIVE!
+    2000       14.743      1185792           7.319 ← THP ACTIVE!
+    3000       22.153      1185792           7.410 ← THP ACTIVE!
+    4000       29.564      1185792           7.410 ← THP ACTIVE!
+    5000       36.882      1185792           7.318 ← THP ACTIVE!
+    6000       44.305      1185792           7.422 ← THP ACTIVE!
+    7000       51.771      1185792           7.466 ← THP ACTIVE!
+    8000       59.234      1185792           7.463 ← THP ACTIVE!
+    9000       66.504      1185792           7.270 ← THP ACTIVE!
+    9999       73.898      1185792           7.401 ← THP ACTIVE!
+
+=== Benchmark Complete ===
+Total time: 73.898 seconds
+Average iteration time: 7.390 ms
+Iterations per second: 135.32
+Memory throughput: 135.32 GB/s
+
+Final checksum: 136924626944
+
+Final memory state:
+  RSS: 1050236 KB (1025.6 MB)
+  AnonHugePages: 1185792 KB (1158.0 MB)
+  Delta AnonHugePages: +292864 KB (286.0 MB)
+
+✓ SUCCESS: THP collapsing detected!
+  Promoted: 286 MB of huge pages
+  Coverage: 27.9% of total memory

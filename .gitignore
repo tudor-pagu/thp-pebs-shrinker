@@ -6,3 +6,13 @@
 .Module.symvers.cmd
 .module*
 .cache
+.compile_commands.json
+.vscode-ctags
+.vscode
+pebs_split_program/main
+program_launcher/launch
+userspace/splitting/test_hugepage
+userspace/test_with_printing
+userspace/benchmarks-2/adaptive_thp
+userspace/benchmarks-2/collapsing
+.gitignore

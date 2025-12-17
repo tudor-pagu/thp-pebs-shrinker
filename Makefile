@@ -3,7 +3,7 @@
 #
 # DOCS:
 # make build - will just build the kernel and modules
-# maek install - will install the kernel 
+# make install - will install the kernel 
 .PHONY: copy-config build install
 	
 linux/.config: .config
